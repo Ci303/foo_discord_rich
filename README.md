@@ -12,6 +12,17 @@ component.
 For setup examples, title-formatting fields, and album art behavior, see the
 [configuration guide](docs/CONFIGURATION.md).
 
+## Installation
+
+Download the latest `.fb2k-component` package from
+[Releases](https://github.com/Ci303/foo_discord_rich/releases).
+
+- Use the `x64` package for foobar2000 v2 64-bit.
+- Use the `Win32` package for foobar2000 32-bit.
+
+Open the downloaded component package with foobar2000 or install it from
+`Preferences > Components > Install...`.
+
 ## Attribution
 
 Original project and component implementation by
@@ -47,7 +58,8 @@ msbuild workspaces\foo_discord_rich.sln /m /p:Configuration=Release /p:Platform=
 py scripts\pack_component.py --configuration Release --platform x64
 ```
 
-Replace `x64` with `Win32` for the 32-bit component build.
+Replace `x64` with `Win32` for the 32-bit component build. Tagged releases are
+built by GitHub Actions for both platforms.
 
 [changelog]: CHANGELOG.md
 [version_badge]: https://img.shields.io/github/release/Ci303/foo_discord_rich.svg

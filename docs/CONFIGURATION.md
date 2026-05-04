@@ -191,6 +191,25 @@ For automatic artwork:
 Artwork is cached by artist/album or upload pin so repeat plays do not need to
 fetch the same art again.
 
+Use `Advanced > Art cache > Clear cache` if a bad lookup is cached or if you
+want the component to retry artwork for albums that previously failed.
+
+## Recommended Settings
+
+### Simple Track / Artist / Album
+
+- Top: `[$if2(%title%,%filename%)]`
+- Middle: `[$if2(%artist%,Unknown artist)]`
+- Bottom: `[$if2(%album%,Unknown album)]`
+- Enable `Fetch and display album art from MusicBrainz`.
+- Disable `Upload and display art` unless you have configured an uploader.
+
+### Album Art First Run
+
+MusicBrainz art lookup runs in the background. The first play may briefly show
+the large image fallback, then update to album art after the request finishes.
+Subsequent plays use the local art cache.
+
 ## Playback Images
 
 The component can show small playback status images:

@@ -197,7 +197,7 @@ void PresenceModifier::UpdateImage()
         {
             const auto userReleaseMbid = EvaluateQueryForPlayingTrack( metadb, "[$lower($if3($meta(MUSICBRAINZ_ALBUMID),$meta(MUSICBRAINZ ALBUM ID)))]" );
             const ArtworkFetcher::MusicBrainzFetchRequest request{
-                .artist = EvaluateQueryForPlayingTrack( metadb, "%artist%" ),
+                .artist = EvaluateQueryForPlayingTrack( metadb, "$if3(%album artist%,%artist%,%composer%)" ),
                 .album = EvaluateQueryForPlayingTrack( metadb, "%album%" ),
                 .userReleaseMbidOpt = userReleaseMbid.empty() ? std::optional<qwr::u8string>{} : userReleaseMbid };
 

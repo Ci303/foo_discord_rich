@@ -178,6 +178,12 @@ void PreferenceTabAdvanced::OnOpenCacheFolderClick( UINT uNotifyCode, int nID, C
     }
 }
 
+void PreferenceTabAdvanced::OnClearCacheClick( UINT uNotifyCode, int nID, CWindow wndCtl )
+{
+    ArtworkFetcher::Get().ClearCache();
+    popup_message::g_show( "Album art cache was cleared.", "Art cache" );
+}
+
 void PreferenceTabAdvanced::OnChanged()
 {
     pParent_->OnDataChanged();

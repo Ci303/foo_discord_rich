@@ -1,4 +1,4 @@
-# Discord Rich Presence Integration v2.0.3-ci303.1
+# Discord Rich Presence Integration v2.0.3-ci303.2
 
 This is a maintained fork release of Discord Rich Presence Integration for
 foobar2000.
@@ -17,6 +17,8 @@ The original MIT license and third-party notices are preserved.
 ## What's Changed
 
 - Added maintained fork documentation and configuration guidance.
+- Added GitHub Actions builds for future x64 and Win32 release packages.
+- Added an art-cache clear button.
 - Added title-formatting examples for common Discord presence layouts.
 - Made setup safer by requiring an explicit flag before resetting submodules.
 - Added MusicBrainz/Cover Art Archive request timeouts and switched Cover Art
@@ -27,6 +29,7 @@ The original MIT license and third-party notices are preserved.
 - Restored Release stack cookie checks.
 - Improved build compatibility with newer Visual Studio/MSVC and installed
   Windows SDK versions.
+- Improved MusicBrainz request metadata and artist fallback behavior.
 
 ## Validation
 
