@@ -7,6 +7,9 @@ This is a component for the [foobar2000](https://www.foobar2000.org) audio playe
 
 Visit [component homepage](https://theqwertiest.github.io/foo_discord_rich) for more info.
 
+For setup examples, title-formatting fields, and album art behavior, see the
+[configuration guide](docs/CONFIGURATION.md).
+
 ## Building
 
 ### Prerequisites

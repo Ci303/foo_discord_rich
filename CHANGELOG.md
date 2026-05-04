@@ -13,6 +13,14 @@ ___
 
 ## [Unreleased][]
 
+### Added
+- Added a configuration guide with title formatting examples and album art setup notes.
+
+### Changed
+- Made build setup safer by requiring an explicit flag before resetting submodules.
+- Improved local build compatibility with newer Visual Studio and installed Windows SDK versions.
+- Hardened album art fetching, playback time parsing, and uploader subprocess handling.
+
 ## [2.0.2][] - 2024-08-11
 
 ### Fixed
