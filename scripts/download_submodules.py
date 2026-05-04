@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import subprocess
 from pathlib import Path
 
@@ -20,18 +21,24 @@ def download_submodule(root_dir, submodule_name):
             subprocess.check_call(f"git submodule deinit --force -- submodules/{submodule_name}", cwd=root_dir, shell=True)
             subprocess.check_call(f"git submodule update --init --force -- submodules/{submodule_name}", cwd=root_dir, shell=True)
 
-def download():
+def download(reset_submodules=False):
     cur_dir = Path(__file__).parent.absolute()
     root_dir = cur_dir.parent
 
     subprocess.check_call("git submodule sync", cwd=root_dir, shell=True)
-    subprocess.check_call("git submodule foreach git reset --hard", cwd=root_dir, shell=True)
+    if reset_submodules:
+        subprocess.check_call("git submodule foreach git reset --hard", cwd=root_dir, shell=True)
     for subdir in [f for f in (root_dir/"submodules").iterdir() if f.is_dir()]:
         download_submodule(root_dir, subdir.name)
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Download project submodules")
+    parser.add_argument("--reset-submodules", default=False, action="store_true",
+                        help="Discard local changes inside submodules before updating")
+    args = parser.parse_args()
+
     call_wrapper.final_call_decorator(
         "Downloading submodules",
         "Downloading submodules: success",
         "Downloading submodules: failure!"
-    )(download)()
+    )(download)(args.reset_submodules)

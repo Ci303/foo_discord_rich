@@ -42,6 +42,7 @@ public:
 
     void LoadCache( bool throwOnError = false );
     void SaveCache();
+    void ClearCache();
     static std::filesystem::path GetCacheFilePath();
 
 private:

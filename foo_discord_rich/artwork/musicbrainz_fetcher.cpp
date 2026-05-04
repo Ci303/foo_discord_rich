@@ -10,6 +10,13 @@ namespace
 
 using namespace drp;
 
+const cpr::Timeout kRequestTimeout{ 10000 };
+const cpr::ConnectTimeout kConnectTimeout{ 5000 };
+const cpr::Header kJsonRequestHeaders{
+    { "Accept", "application/json" },
+    { "User-Agent", "foo_discord_rich/2.0.3-ci303.2 (https://github.com/Ci303/foo_discord_rich)" },
+};
+
 bool IsValidGuid( const qwr::u8string& str )
 {
     GUID guid;
@@ -43,8 +50,12 @@ std::optional<qwr::u8string> FetchReleaseMbid( const qwr::u8string& artist, cons
 
     auto releaseGroupResp = cpr::Get(
         cpr::Url{ "https://www.musicbrainz.org/ws/2/release-group" },
+        kConnectTimeout,
+        kRequestTimeout,
+        kJsonRequestHeaders,
         cpr::Parameters{
             { "query", fmt::format( "artist:\"{}\"+releasegroup:\"{}\"", artist, album ) },
+            { "inc", "releases" },
             { "fmt", "json" },
         } );
     LogRequest( releaseGroupResp );
@@ -73,7 +84,9 @@ std::optional<qwr::u8string> FetchReleaseMbid( const qwr::u8string& artist, cons
             const auto releaseId = release.at( "id" ).get<qwr::u8string>();
             auto releaseResp = cpr::Get(
                 cpr::Url{ fmt::format( "https://www.musicbrainz.org/ws/2/release/{}", releaseId ) },
-                cpr::Header{ { "Accept", "application/json" } } );
+                kConnectTimeout,
+                kRequestTimeout,
+                kJsonRequestHeaders );
             LogRequest( releaseResp );
             if ( releaseResp.status_code != 200 )
             {
@@ -101,7 +114,10 @@ std::optional<qwr::u8string> FetchReleaseMbid( const qwr::u8string& artist, cons
 std::optional<qwr::u8string> FetchAlbumArtUrl( const qwr::u8string& mbid )
 {
     auto resp = cpr::Get(
-        cpr::Url{ fmt::format( "http://coverartarchive.org/release/{}/front-1200", mbid ) } );
+        cpr::Url{ fmt::format( "https://coverartarchive.org/release/{}/front-1200", mbid ) },
+        kConnectTimeout,
+        kRequestTimeout,
+        cpr::Header{ { "User-Agent", "foo_discord_rich/2.0.3-ci303.2 (https://github.com/Ci303/foo_discord_rich)" } } );
     LogRequest( resp );
     if ( resp.status_code == 404 )
     {
@@ -141,6 +157,7 @@ std::optional<qwr::u8string> FetchArt( const qwr::u8string& artist, const qwr::u
     const auto releaseMbidOpt = FetchReleaseMbid( artist, album, aborter );
     if ( !releaseMbidOpt )
     {
+        LogWarning( fmt::format( "No MusicBrainz release with cover art found for artist `{}` and album `{}`", artist, album ) );
         return std::nullopt;
     }
 

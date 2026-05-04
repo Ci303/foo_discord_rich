@@ -9,7 +9,7 @@
 DECLARE_COMPONENT_VERSION(
     DRP_NAME,
     DRP_VERSION,
-    DRP_NAME_WITH_VERSION " by TheQwertiest" );
+    DRP_NAME_WITH_VERSION " by Ci303, forked from the original component by TheQwertiest" );
 
 VALIDATE_COMPONENT_FILENAME( DRP_DLL_NAME );
 

@@ -40,6 +40,11 @@ private:
     /// @throw qwr::qwrException
     static std::optional<qwr::u8string> ReadDataFromPipe( HANDLE hPipe );
 
+    /// @throw qwr::qwrException
+    static void ReadAvailableDataFromPipe( HANDLE hPipe, qwr::u8string& output );
+
+    static std::optional<qwr::u8string> TrimOutput( const qwr::u8string& output );
+
 private:
     using UniqueHandlePtr = std::unique_ptr<std::remove_pointer_t<HANDLE>, decltype( &CloseHandle )>;
 
@@ -57,6 +62,8 @@ private:
     };
 
     JobHandles handles_;
+    qwr::u8string output_;
+    qwr::u8string errorOutput_;
 };
 
 } // namespace drp

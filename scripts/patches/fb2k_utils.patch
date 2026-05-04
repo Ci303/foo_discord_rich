@@ -1,0 +1,22 @@
+diff --git a/submodules/fb2k_utils/src/qwr/pfc_helpers_cnt.h b/submodules/fb2k_utils/src/qwr/pfc_helpers_cnt.h
+index 81f4f08..59d6dd7 100644
+--- a/submodules/fb2k_utils/src/qwr/pfc_helpers_cnt.h
++++ b/submodules/fb2k_utils/src/qwr/pfc_helpers_cnt.h
+@@ -353,7 +353,7 @@ public:
+     {
+         if ( idx >= this->size() )
+         {
+-            throw std::out_of_range;
++            throw std::out_of_range( "index out of range" );
+         }
+         return this->operator[]( idx );
+     }
+@@ -361,7 +361,7 @@ public:
+     {
+         if ( idx >= this->size() )
+         {
+-            throw std::out_of_range;
++            throw std::out_of_range( "index out of range" );
+         }
+         return this->operator[]( idx );
+     }

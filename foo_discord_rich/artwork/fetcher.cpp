@@ -183,6 +183,28 @@ void ArtworkFetcher::SaveCache()
     }
 }
 
+void ArtworkFetcher::ClearCache()
+{
+    {
+        std::unique_lock lock( mutex_ );
+        artPinIdToArtUrl_.clear();
+        currentRequestOpt_.reset();
+    }
+
+    try
+    {
+        const auto cachePath = GetCacheFilePath();
+        if ( fs::exists( cachePath ) )
+        {
+            fs::remove( cachePath );
+        }
+    }
+    catch ( const fs::filesystem_error& e )
+    {
+        LogError( fmt::format( "Failed to clear cache: {}", e.what() ) );
+    }
+}
+
 std::filesystem::path ArtworkFetcher::GetCacheFilePath()
 {
     static const auto cachePath = drp::path::ImageDir() / "art_urls.v2.0.1.json";
