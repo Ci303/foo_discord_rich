@@ -5,6 +5,8 @@
 #include <qwr/abort_callback.h>
 #include <qwr/winapi_error_helpers.h>
 
+#include <vector>
+
 namespace drp
 {
 
@@ -44,18 +46,35 @@ DWORD SubprocessExecutor::WaitUntilCompleted( const std::chrono::seconds& timeou
 
     qwr::TimedAbortCallback aborter{ "", timeout };
 
-    std::array handlesToWait{ handles_.hProcess.get(), aborter.get_handle() };
-    const auto waitResult = WaitForMultipleObjects( static_cast<DWORD>( handlesToWait.size() ), handlesToWait.data(), false, static_cast<DWORD>( std::chrono::milliseconds{ timeout }.count() ) );
-    if ( waitResult != WAIT_OBJECT_0 )
-    {
-        if ( waitResult == WAIT_TIMEOUT )
-        {
-            throw qwr::QwrException( "SubprocessExecutor error: process timed out" );
-        }
+    handles_.hStdoutWrite.reset();
+    handles_.hStderrWrite.reset();
+    handles_.hStdinRead.reset();
 
-        assert( waitResult == WAIT_OBJECT_0 + 1 && aborter.is_aborting() );
-        aborter.check();
+    std::array handlesToWait{ handles_.hProcess.get(), aborter.get_handle() };
+    bool isProcessCompleted = false;
+    while ( !isProcessCompleted )
+    {
+        ReadAvailableDataFromPipe( handles_.hStdoutRead.get(), output_ );
+        ReadAvailableDataFromPipe( handles_.hStderrRead.get(), errorOutput_ );
+
+        const auto waitResult = WaitForMultipleObjects( static_cast<DWORD>( handlesToWait.size() ), handlesToWait.data(), false, 50 );
+        if ( waitResult == WAIT_OBJECT_0 )
+        {
+            isProcessCompleted = true;
+        }
+        else if ( waitResult == WAIT_TIMEOUT )
+        {
+            continue;
+        }
+        else
+        {
+            assert( waitResult == WAIT_OBJECT_0 + 1 && aborter.is_aborting() );
+            aborter.check();
+        }
     }
+
+    ReadAvailableDataFromPipe( handles_.hStdoutRead.get(), output_ );
+    ReadAvailableDataFromPipe( handles_.hStderrRead.get(), errorOutput_ );
 
     DWORD exitCode = 0;
     auto bRet = ::GetExitCodeProcess( handles_.hProcess.get(), &exitCode );
@@ -63,9 +82,6 @@ DWORD SubprocessExecutor::WaitUntilCompleted( const std::chrono::seconds& timeou
 
     handles_.hProcess.reset();
     handles_.hThread.reset();
-    handles_.hStdinRead.reset();
-    handles_.hStdoutWrite.reset();
-    handles_.hStderrWrite.reset();
 
     return exitCode;
 }
@@ -74,16 +90,14 @@ std::optional<qwr::u8string> SubprocessExecutor::GetOutput()
 {
     qwr::QwrException::ExpectTrue( handles_.hStdoutRead.get(), "SubprocessExecutor error: null hStdoutRead" );
 
-    auto hRead = std::move( handles_.hStdoutRead );
-    return ReadDataFromPipe( hRead.get() );
+    return TrimOutput( output_ );
 }
 
 std::optional<qwr::u8string> SubprocessExecutor::GetErrorOutput()
 {
     qwr::QwrException::ExpectTrue( handles_.hStderrRead.get(), "SubprocessExecutor error: null hStderrRead" );
 
-    auto hRead = std::move( handles_.hStderrRead );
-    return ReadDataFromPipe( hRead.get() );
+    return TrimOutput( errorOutput_ );
 }
 
 void SubprocessExecutor::CreatePipes()
@@ -177,26 +191,41 @@ void SubprocessExecutor::CreateJob()
 
 std::optional<qwr::u8string> SubprocessExecutor::ReadDataFromPipe( HANDLE hPipe )
 {
-    std::array<char, 2048> stdoutBuf{};
-    DWORD dwRead = 0;
-    if ( !::PeekNamedPipe( hPipe, stdoutBuf.data(), static_cast<DWORD>( stdoutBuf.size() ), &dwRead, nullptr, nullptr ) || !dwRead )
+    qwr::u8string output;
+    ReadAvailableDataFromPipe( hPipe, output );
+    return TrimOutput( output );
+}
+
+void SubprocessExecutor::ReadAvailableDataFromPipe( HANDLE hPipe, qwr::u8string& output )
+{
+    if ( !hPipe )
+    {
+        return;
+    }
+
+    DWORD availableBytes = 0;
+    while ( ::PeekNamedPipe( hPipe, nullptr, 0, nullptr, &availableBytes, nullptr ) && availableBytes )
+    {
+        std::vector<char> buf( std::min<DWORD>( availableBytes, 4096 ) );
+        DWORD bytesRead = 0;
+        const auto bRet = ::ReadFile( hPipe, buf.data(), static_cast<DWORD>( buf.size() ), &bytesRead, nullptr );
+        qwr::error::CheckWinApi( bRet, "ReadFile" );
+
+        output.append( buf.data(), bytesRead );
+        availableBytes = 0;
+    }
+}
+
+std::optional<qwr::u8string> SubprocessExecutor::TrimOutput( const qwr::u8string& output )
+{
+    qwr::u8string_view trimmedOutput{ output };
+    trimmedOutput = trimmedOutput.substr( 0, trimmedOutput.find_last_not_of( " \t\n\r" ) + 1 );
+    if ( trimmedOutput.empty() )
     {
         return std::nullopt;
     }
 
-    stdoutBuf.fill( 0 );
-    dwRead = 0;
-    auto bRet = ::ReadFile( hPipe, stdoutBuf.data(), static_cast<DWORD>( stdoutBuf.size() ), &dwRead, nullptr );
-    qwr::error::CheckWinApi( bRet, "ReadFile" );
-
-    qwr::u8string_view output{ stdoutBuf.data(), strlen( stdoutBuf.data() ) };
-    output = output.substr( 0, output.find_last_not_of( " \t\n\r" ) + 1 );
-    if ( output.empty() )
-    {
-        return std::nullopt;
-    }
-
-    return qwr::u8string{ output.data(), output.size() };
+    return qwr::u8string{ trimmedOutput.data(), trimmedOutput.size() };
 }
 
 } // namespace drp

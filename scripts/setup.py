@@ -39,13 +39,14 @@ def load_module(script_path):
     return mod
 
 def setup( skip_submodules_download,
-           skip_submodules_patches ):
+           skip_submodules_patches,
+           reset_submodules ):
     cur_dir = Path(__file__).parent.absolute()
     root_dir = cur_dir.parent
     scripts_path = root_dir/'submodules'/'fb2k_utils'/'scripts'
 
     if (not skip_submodules_download):
-        call_decorator('Downloading submodules')(download_submodules.download)()
+        call_decorator('Downloading submodules')(download_submodules.download)(reset_submodules)
         call_decorator("Configuring Discord RPC")(configure_discord_rpc.configure)()
         call_decorator("Configuring CPR")(configure_cpr.configure)()
         if (not skip_submodules_patches):
@@ -90,6 +91,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Setup project')
     parser.add_argument('--skip_submodules_download', default=False, action='store_true')
     parser.add_argument('--skip_submodules_patches', default=False, action='store_true')
+    parser.add_argument('--reset_submodules', default=False, action='store_true',
+                        help='Discard local changes inside submodules before updating')
 
     args = parser.parse_args()
 
@@ -101,5 +104,6 @@ if __name__ == '__main__':
     setup
     )(
         args.skip_submodules_download,
-        args.skip_submodules_patches
+        args.skip_submodules_patches,
+        args.reset_submodules
     )

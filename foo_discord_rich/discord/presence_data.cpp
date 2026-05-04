@@ -37,6 +37,26 @@ qwr::u8string EvaluateQueryForPlayingTrack( const metadb_handle_ptr& handle, con
     return result.c_str();
 }
 
+double ParseDoubleOrZero( const qwr::u8string& value )
+{
+    if ( value.empty() )
+    {
+        return 0;
+    }
+
+    try
+    {
+        size_t processedChars = 0;
+        const auto result = std::stold( value, &processedChars );
+        return ( processedChars ? static_cast<double>( result ) : 0 );
+    }
+    catch ( const std::exception& )
+    {
+        drp::LogWarning( fmt::format( "Failed to parse playback time value: `{}`", value ) );
+        return 0;
+    }
+}
+
 } // namespace
 
 namespace drp::internal
@@ -166,7 +186,6 @@ void PresenceModifier::UpdateImage()
 
         if ( config::enableArtUpload )
         { // overrides art fetching
-            const auto albumId = EvaluateQueryForPlayingTrack( metadb, config::artUploadPinQuery );
             const ArtworkFetcher::UploadRequest request{
                 .artPinId = EvaluateQueryForPlayingTrack( metadb, config::artUploadPinQuery ),
                 .handle = metadb,
@@ -286,7 +305,7 @@ void PresenceModifier::UpdateTrack( metadb_handle_ptr metadb )
 
     const qwr::u8string lengthStr = queryData( "[%length_seconds_fp%]" );
     const qwr::u8string durationStr = queryData( "[%playback_time_seconds%]" );
-    UpdateDuration( durationStr.empty() ? 0 : stold( durationStr ), lengthStr.empty() ? 0 : stold( lengthStr ) );
+    UpdateDuration( ParseDoubleOrZero( durationStr ), ParseDoubleOrZero( lengthStr ) );
 
     UpdateImage();
 }
