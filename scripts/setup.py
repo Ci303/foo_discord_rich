@@ -77,7 +77,7 @@ def setup( skip_submodules_download,
     )(
         repo_dir=root_dir,
         output_dir=root_dir/'_result'/'AllPlatforms'/'generated',
-        repo='theqwertiest/foo_discord_rich'
+        repo='Ci303/foo_discord_rich'
     )
     call_decorator('3rd-party notices generation'
     )(

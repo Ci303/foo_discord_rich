@@ -31,7 +31,7 @@ public:
 
     bool get_help_url( pfc::string_base& p_out ) override
     {
-        p_out = "https://github.com/TheQwertiest/foo_discord_rich";
+        p_out = DRP_HOMEPAGE;
         return true;
     }
 

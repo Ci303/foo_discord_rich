@@ -2,6 +2,7 @@
 
 #### Table of Contents
 - [Unreleased](#unreleased)
+- [2.0.3-ci303.1](#203-ci3031---2026-05-04)
 - [2.0.2](#202---2024-08-11)
 - [2.0.1](#201---2024-08-11)
 - [2.0.0](#200---2024-08-11)
@@ -12,6 +13,8 @@
 ___
 
 ## [Unreleased][]
+
+## [2.0.3-ci303.1][] - 2026-05-04
 
 ### Added
 - Added a configuration guide with title formatting examples and album art setup notes.
@@ -94,7 +97,8 @@ ___
 ## [1.0.0][] - 2018-11-06
 Initial release.
 
-[unreleased]: https://github.com/TheQwertiest/foo_discord_rich/compare/v2.0.2...HEAD
+[unreleased]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.1...HEAD
+[2.0.3-ci303.1]: https://github.com/Ci303/foo_discord_rich/releases/tag/v2.0.3-ci303.1
 [2.0.2]: https://github.com/TheQwertiest/foo_discord_rich/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/TheQwertiest/foo_discord_rich/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/TheQwertiest/foo_discord_rich/compare/v1.2.0...v2.0.0

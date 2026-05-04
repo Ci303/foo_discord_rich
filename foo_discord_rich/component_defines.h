@@ -31,4 +31,4 @@
         DRP_VERSION_PRERELEASE DRP_VERSION_METADATA
 #define DRP_NAME_WITH_VERSION DRP_NAME " v" DRP_VERSION DRP_VERSION_DEBUG_SUFFIX
 
-#define DRP_HOMEPAGE "https://theqwertiest.github.io/foo_discord_rich"
+#define DRP_HOMEPAGE "https://github.com/Ci303/foo_discord_rich"
