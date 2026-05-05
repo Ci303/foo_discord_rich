@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - master
-      - codex/**
     tags:
       - "v*"
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -44,10 +46,17 @@ jobs:
       - name: Restore NuGet packages
         run: nuget restore workspaces\foo_discord_rich.sln
 
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
       - name: Build
         shell: pwsh
         run: |
-          $env:Path = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;$env:Path"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $cmake = & $vswhere -latest -products * -find "Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" | Select-Object -First 1
+          if ($cmake) {
+            $env:Path = "$(Split-Path $cmake -Parent);$env:Path"
+          }
           msbuild workspaces\foo_discord_rich.sln /m /p:Configuration=Release /p:Platform=${{ matrix.platform }}
 
       - name: Package

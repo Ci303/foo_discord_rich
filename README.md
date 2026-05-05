@@ -25,8 +25,9 @@ Open the downloaded component package with foobar2000 or install it from
 
 ## Attribution
 
-Original project and component implementation by
-[TheQwertiest](https://github.com/TheQwertiest) and contributors.
+Original project:
+[TheQwertiest/foo_discord_rich](https://github.com/TheQwertiest/foo_discord_rich).
+Original component implementation by TheQwertiest and contributors.
 
 This fork is maintained by [Ci303](https://github.com/Ci303) because the
 original project is no longer actively maintained. The original MIT license and
