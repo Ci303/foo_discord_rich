@@ -5,16 +5,32 @@
 #include <qwr/abort_callback.h>
 #include <qwr/winapi_error_helpers.h>
 
+#include <limits>
 #include <vector>
+
+namespace
+{
+
+constexpr size_t kMaxCapturedOutputBytes = 64 * 1024;
+
+} // namespace
 
 namespace drp
 {
 
 SubprocessExecutor::SubprocessExecutor( const qwr::u8string& command )
 {
-    CreatePipes();
-    CreateProcess( command );
-    CreateJob();
+    try
+    {
+        CreatePipes();
+        CreateProcess( command );
+        CreateJob();
+    }
+    catch ( ... )
+    {
+        TerminateProcess();
+        throw;
+    }
 }
 
 void SubprocessExecutor::Start()
@@ -29,9 +45,25 @@ void SubprocessExecutor::WriteData( const qwr::u8string& data )
 {
     qwr::QwrException::ExpectTrue( handles_.hStdinWrite.get(), "SubprocessExecutor error: null hStdinWrite" );
 
-    DWORD written = 0;
-    auto bRet = ::WriteFile( handles_.hStdinWrite.get(), data.data(), static_cast<DWORD>( data.size() ), &written, nullptr );
-    qwr::error::CheckWinApi( bRet, "WriteFile" );
+    size_t writeOffset = 0;
+    while ( writeOffset < data.size() )
+    {
+        DWORD bytesWritten = 0;
+        const auto bytesToWrite = static_cast<DWORD>( std::min<size_t>( data.size() - writeOffset, std::numeric_limits<DWORD>::max() ) );
+        const auto bRet = ::WriteFile(
+            handles_.hStdinWrite.get(),
+            data.data() + writeOffset,
+            bytesToWrite,
+            &bytesWritten,
+            nullptr );
+        qwr::error::CheckWinApi( bRet, "WriteFile" );
+        writeOffset += bytesWritten;
+        if ( bytesWritten == 0 )
+        {
+            break;
+        }
+    }
+    qwr::QwrException::ExpectTrue( writeOffset == data.size(), "SubprocessExecutor error: failed to write full data to stdin" );
 
     handles_.hStdinWrite.reset();
 }
@@ -66,10 +98,13 @@ DWORD SubprocessExecutor::WaitUntilCompleted( const std::chrono::seconds& timeou
         {
             continue;
         }
+        else if ( waitResult == WAIT_OBJECT_0 + 1 )
+        {
+            aborter.check();
+        }
         else
         {
-            assert( waitResult == WAIT_OBJECT_0 + 1 && aborter.is_aborting() );
-            aborter.check();
+            qwr::error::CheckWinApi( false, "WaitForMultipleObjects" );
         }
     }
 
@@ -189,6 +224,14 @@ void SubprocessExecutor::CreateJob()
     qwr::error::CheckWinApi( bRet, "AssignProcessToJobObject" );
 }
 
+void SubprocessExecutor::TerminateProcess() noexcept
+{
+    if ( handles_.hProcess )
+    {
+        ::TerminateProcess( handles_.hProcess.get(), 1 );
+    }
+}
+
 std::optional<qwr::u8string> SubprocessExecutor::ReadDataFromPipe( HANDLE hPipe )
 {
     qwr::u8string output;
@@ -209,9 +252,25 @@ void SubprocessExecutor::ReadAvailableDataFromPipe( HANDLE hPipe, qwr::u8string&
         std::vector<char> buf( std::min<DWORD>( availableBytes, 4096 ) );
         DWORD bytesRead = 0;
         const auto bRet = ::ReadFile( hPipe, buf.data(), static_cast<DWORD>( buf.size() ), &bytesRead, nullptr );
-        qwr::error::CheckWinApi( bRet, "ReadFile" );
+        if ( !bRet )
+        {
+            if ( GetLastError() != ERROR_BROKEN_PIPE )
+            {
+                qwr::error::CheckWinApi( false, "ReadFile" );
+            }
+            break;
+        }
 
-        output.append( buf.data(), bytesRead );
+        if ( bytesRead == 0 )
+        {
+            break;
+        }
+
+        if ( output.size() < kMaxCapturedOutputBytes )
+        {
+            const auto remainingCapacity = kMaxCapturedOutputBytes - output.size();
+            output.append( buf.data(), std::min<size_t>( bytesRead, remainingCapacity ) );
+        }
         availableBytes = 0;
     }
 }
@@ -219,7 +278,13 @@ void SubprocessExecutor::ReadAvailableDataFromPipe( HANDLE hPipe, qwr::u8string&
 std::optional<qwr::u8string> SubprocessExecutor::TrimOutput( const qwr::u8string& output )
 {
     qwr::u8string_view trimmedOutput{ output };
-    trimmedOutput = trimmedOutput.substr( 0, trimmedOutput.find_last_not_of( " \t\n\r" ) + 1 );
+    const auto lastNotWhitespace = trimmedOutput.find_last_not_of( " \t\n\r" );
+    if ( lastNotWhitespace == qwr::u8string_view::npos )
+    {
+        return std::nullopt;
+    }
+
+    trimmedOutput = trimmedOutput.substr( 0, lastNotWhitespace + 1 );
     if ( trimmedOutput.empty() )
     {
         return std::nullopt;

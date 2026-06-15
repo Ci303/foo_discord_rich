@@ -26,6 +26,13 @@ void DiscordAdapter::Initialize()
     config::timeSettings = config::TimeSetting::Disabled;
 
     appToken_ = config::discordAppToken;
+    if ( appToken_.empty() )
+    {
+        FB2K_console_formatter() << DRP_NAME_WITH_VERSION << ": app token is empty, Discord Rich Presence is disabled";
+        isInitialized_ = false;
+        hasPresence_ = false;
+        return;
+    }
 
     DiscordEventHandlers handlers{};
 
@@ -36,6 +43,7 @@ void DiscordAdapter::Initialize()
     Discord_Initialize( appToken_.c_str(), &handlers, 1, nullptr );
     Discord_RunCallbacks();
 
+    isInitialized_ = true;
     hasPresence_ = true; ///< Discord may use default app handler, which we need to override
 
     auto pm = GetPresenceModifier();
@@ -45,8 +53,16 @@ void DiscordAdapter::Initialize()
 
 void DiscordAdapter::Finalize()
 {
+    if ( !isInitialized_ )
+    {
+        hasPresence_ = false;
+        return;
+    }
+
     Discord_ClearPresence();
     Discord_Shutdown();
+    hasPresence_ = false;
+    isInitialized_ = false;
 }
 
 void DiscordAdapter::OnSettingsChanged()
@@ -74,6 +90,11 @@ bool DiscordAdapter::HasPresence() const
 
 void DiscordAdapter::SendPresence()
 {
+    if ( !isInitialized_ )
+    {
+        return;
+    }
+
     if ( config::isEnabled )
     {
         Discord_UpdatePresence( &presenceData_.presence );
@@ -89,6 +110,12 @@ void DiscordAdapter::SendPresence()
 
 void DiscordAdapter::ClearPresence()
 {
+    if ( !isInitialized_ )
+    {
+        hasPresence_ = false;
+        return;
+    }
+
     Discord_ClearPresence();
     hasPresence_ = false;
 
@@ -102,7 +129,7 @@ PresenceModifier DiscordAdapter::GetPresenceModifier()
 
 void DiscordAdapter::OnReady( const DiscordUser* request )
 {
-    FB2K_console_formatter() << DRP_NAME_WITH_VERSION << ": connected to " << ( request->username ? request->username : "<null>" );
+    FB2K_console_formatter() << DRP_NAME_WITH_VERSION << ": connected to " << ( request && request->username ? request->username : "<null>" );
 }
 
 void DiscordAdapter::OnDisconnected( int errorCode, const char* message )

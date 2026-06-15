@@ -37,6 +37,8 @@ private:
     /// @throw qwr::qwrException
     void CreateJob();
 
+    void TerminateProcess() noexcept;
+
     /// @throw qwr::qwrException
     static std::optional<qwr::u8string> ReadDataFromPipe( HANDLE hPipe );
 

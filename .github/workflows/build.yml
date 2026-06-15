@@ -57,7 +57,7 @@ jobs:
           if ($cmake) {
             $env:Path = "$(Split-Path $cmake -Parent);$env:Path"
           }
-          msbuild workspaces\foo_discord_rich.sln /m /p:Configuration=Release /p:Platform=${{ matrix.platform }}
+          msbuild workspaces\foo_discord_rich.sln /m /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:PlatformToolset=v145 /p:VCToolsVersion=14.51.36231
 
       - name: Package
         run: py scripts\pack_component.py --configuration Release --platform ${{ matrix.platform }}

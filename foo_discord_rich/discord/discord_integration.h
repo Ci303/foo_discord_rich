@@ -31,7 +31,8 @@ private:
     static void OnErrored( int errorCode, const char* message );
 
 private:
-    bool hasPresence_ = true;
+    bool isInitialized_ = false;
+    bool hasPresence_ = false;
     qwr::u8string appToken_;
     drp::internal::PresenceData presenceData_;
 };

@@ -140,7 +140,8 @@ void PreferenceTabManager::OnParentNotify( UINT message, UINT nChildID, LPARAM l
 
 LRESULT PreferenceTabManager::OnSelectionChanged( LPNMHDR pNmhdr )
 {
-    activeTabIdx_ = TabCtrl_GetCurSel( GetDlgItem( IDC_TAB_PREFS_CURRENT ) );
+    const auto selectedIdx = TabCtrl_GetCurSel( GetDlgItem( IDC_TAB_PREFS_CURRENT ) );
+    activeTabIdx_ = ( selectedIdx < 0 ? 0 : static_cast<size_t>( selectedIdx ) );
     CreateTab();
 
     return 0;
@@ -195,11 +196,18 @@ void PreferenceTabManager::CreateTab()
 
 void PreferenceTabManager::DestroyTab()
 {
-    if ( pcCurTab_ && static_cast<HWND>( *pcCurTab_ ) )
+    if ( !pcCurTab_ )
+    {
+        return;
+    }
+
+    if ( static_cast<HWND>( *pcCurTab_ ) )
     {
         pcCurTab_->ShowWindow( SW_HIDE );
         pcCurTab_->DestroyWindow();
     }
+
+    pcCurTab_ = nullptr;
 }
 
 } // namespace drp::ui

@@ -40,6 +40,11 @@ const qwr::u8string& GetTempImageFilePathTemplate()
 
 std::optional<ArtData> GetArtData( const metadb_handle_ptr& handle, abort_callback& aborter )
 {
+    if ( handle.is_empty() )
+    {
+        return std::nullopt;
+    }
+
     const auto pArtMgr = album_art_manager_v3::get();
 
     const auto handles = pfc::list_single_ref_t<metadb_handle_ptr>( handle );
@@ -55,8 +60,17 @@ std::optional<ArtData> GetArtData( const metadb_handle_ptr& handle, abort_callba
         }
 
         const auto pArt = pArtExtractor->query( artTypeGuid, aborter );
+        if ( !pArt.is_valid() )
+        {
+            return std::nullopt;
+        }
+
         const auto pathOpt = [&]() -> std::optional<qwr::u8string> {
             const auto pPathList = pArtExtractor->query_paths( artTypeGuid, aborter );
+            if ( !pPathList.is_valid() )
+            {
+                return std::nullopt;
+            }
             if ( !pPathList->get_count() )
             {
                 return std::nullopt;

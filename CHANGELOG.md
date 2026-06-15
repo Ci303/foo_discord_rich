@@ -14,6 +14,23 @@ ___
 
 ## [Unreleased][]
 
+### Fixed
+- Fixed an artwork worker startup race that could read the worker thread handle before it existed.
+- Fixed unsynchronised artwork cache reads and writes between the worker, playback updates, and Preferences UI.
+- Fixed malformed MusicBrainz responses and invalid custom uploader output escaping the artwork worker.
+- Fixed invalid playback duration values producing unsafe Discord timestamps.
+- Fixed cache folder opening and uploader subprocess failures relying on release-build assertions, unchecked Shell API results, or unbounded output capture.
+- Fixed shutdown and subprocess setup paths that could leave delayed Discord refresh callbacks or suspended uploader processes behind.
+- Fixed oversized artwork cache files and null Discord ready callbacks being able to destabilise startup/logging paths.
+- Fixed release-build artwork paths relying on assumptions about valid foobar album-art handles and generated cache keys.
+- Fixed unbounded artwork cache keys from malformed tags or title-format queries.
+- Fixed unexpected artwork worker exceptions being able to terminate the host process.
+- Fixed delayed dynamic-info refresh callbacks running after component shutdown has started.
+- Fixed remaining queued artwork refresh, cache persistence, and per-request artwork exception paths that could outlive shutdown or stop the artwork worker.
+- Fixed malformed MusicBrainz album IDs being passed to GUID parsing without a fixed-length pre-check.
+- Fixed setup and packaging helpers relying on optimisable Python assertions or shell command strings.
+- Fixed dependency project templates defaulting only to the VS2022 toolset and missing the CMake compatibility flag needed by current CMake.
+
 ## [2.0.3-ci303.2][] - 2026-05-04
 
 ### Added

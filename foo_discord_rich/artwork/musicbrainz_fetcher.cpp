@@ -19,6 +19,11 @@ const cpr::Header kJsonRequestHeaders{
 
 bool IsValidGuid( const qwr::u8string& str )
 {
+    if ( str.size() != 36 )
+    {
+        return false;
+    }
+
     GUID guid;
     HRESULT hr = IIDFromString( qwr::unicode::ToWide( fmt::format( "{{{}}}", str ) ).c_str(), &guid );
     return SUCCEEDED( hr );
@@ -104,9 +109,9 @@ std::optional<qwr::u8string> FetchReleaseMbid( const qwr::u8string& artist, cons
 
         return std::nullopt;
     }
-    catch ( const nlohmann::json::parse_error& e )
+    catch ( const nlohmann::json::exception& e )
     {
-        throw qwr::QwrException( "Failed to parse musicbrainz response: {}", e.what() );
+        throw qwr::QwrException( "Failed to parse MusicBrainz response: {}", e.what() );
     }
 }
 

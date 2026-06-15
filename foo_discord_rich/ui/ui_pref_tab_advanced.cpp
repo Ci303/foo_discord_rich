@@ -159,22 +159,42 @@ void PreferenceTabAdvanced::OnSaveCacheClick( UINT uNotifyCode, int nID, CWindow
 
 void PreferenceTabAdvanced::OnOpenCacheFolderClick( UINT uNotifyCode, int nID, CWindow wndCtl )
 {
-    const auto& cachePath = ArtworkFetcher::GetCacheFilePath();
-    if ( !fs::exists( cachePath ) )
+    try
     {
+        const auto& cachePath = ArtworkFetcher::GetCacheFilePath();
+        const auto cacheDir = cachePath.parent_path();
+        if ( !fs::exists( cachePath ) )
+        {
+            ShellExecute( nullptr,
+                          L"explore",
+                          cacheDir.c_str(),
+                          nullptr,
+                          nullptr,
+                          SW_SHOWNORMAL );
+            return;
+        }
+
+        PIDLIST_ABSOLUTE pidl{};
+        const auto hr = SHParseDisplayName( cachePath.c_str(), nullptr, &pidl, 0, 0 );
+        if ( SUCCEEDED( hr ) && pidl )
+        {
+            SHOpenFolderAndSelectItems( pidl, 0, nullptr, 0 );
+            CoTaskMemFree( pidl );
+            return;
+        }
+
         ShellExecute( nullptr,
                       L"explore",
-                      cachePath.parent_path().c_str(),
+                      cacheDir.c_str(),
                       nullptr,
                       nullptr,
                       SW_SHOWNORMAL );
     }
-    else
+    catch ( const fs::filesystem_error& e )
     {
-        PIDLIST_ABSOLUTE pidl{};
-        SHParseDisplayName( cachePath.c_str(), nullptr, &pidl, 0, 0 );
-        SHOpenFolderAndSelectItems( pidl, 0, nullptr, 0 );
-        CoTaskMemFree( pidl );
+        const auto errorMsg = fmt::format( "Failed to open art cache folder:\n{}", e.what() );
+        LogError( errorMsg );
+        popup_message::g_show( errorMsg.c_str(), "Art cache" );
     }
 }
 

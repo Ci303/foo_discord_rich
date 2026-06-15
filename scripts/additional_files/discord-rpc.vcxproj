@@ -20,6 +20,76 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectGuid>{252FFD06-6A3F-4A2F-AEE0-4586A16D698F}</ProjectGuid>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset Condition="'$(PlatformToolset)' == '' and '$(VisualStudioVersion)' &gt;= '18.0'">v145</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)' == ''">v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)..\_result\$(Platform)_$(Configuration)\deps\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)..\_result\$(Platform)_$(Configuration)\temp\$(ProjectName)\</IntDir>
+    <NMakeOutput>$(OutDir)lib\cpr.lib</NMakeOutput>
+    <CMakeExe>$(CurrentVsInstallRoot)\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe</CMakeExe>
+  </PropertyGroup>
+  <PropertyGroup>
+    <NMakeBuildCommandLine>if not exist "$(IntDir)" mkdir "$(IntDir)"
+cd "$(IntDir)"
+"$(CMakeExe)" -S "$(ProjectDir.TrimEnd('\'))" -DCMAKE_INSTALL_PREFIX="$(OutDir.TrimEnd('\'))" -DCMAKE_GENERATOR_INSTANCE="$(CurrentVsInstallRoot)" -DCMAKE_GENERATOR_PLATFORM=$(Platform) -T $(PlatformToolset) -DCMAKE_BUILD_TYPE=$(Configuration) -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DFORCE_SSE2=ON -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_STATIC_CURL:BOOL=ON -DBUILD_STATIC_LIBS:BOOL=ON -DCURL_STATIC_CRT:BOOL=ON -DWITH_OPTIM:BOOL=OFF
+"$(CMakeExe)" --build "$(IntDir.TrimEnd('\'))" --config $(Configuration) --target install</NMakeBuildCommandLine>
+    <ExecutablePath>$(DevEnvDir)CommonExtensions\Microsoft\CMake\CMake\bin;$(ExecutablePath)</ExecutablePath>
+    <NMakeCleanCommandLine>if exist "$(IntDir.TrimEnd('\'))" rmdir /s/q "$(IntDir.TrimEnd('\'))"
+if exist "$(OutDir.TrimEnd('\'))" rmdir /s/q "$(OutDir.TrimEnd('\'))"</NMakeCleanCommandLine>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="cpr\*.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\cpr\*.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
+
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{FD83C8CA-35C7-4F67-ADE3-2FD99C91B230}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
@@ -28,7 +98,8 @@
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Makefile</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)' == '' and '$(VisualStudioVersion)' &gt;= '18.0'">v145</PlatformToolset>
+    <PlatformToolset Condition="'$(PlatformToolset)' == ''">v145</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -43,15 +114,16 @@
     <OutDir>$(SolutionDir)..\_result\$(Platform)_$(Configuration)\deps\$(ProjectName)\</OutDir>
     <IntDir>$(SolutionDir)..\_result\$(Platform)_$(Configuration)\temp\$(ProjectName)\</IntDir>
     <NMakeOutput>$(OutDir)lib\discord-rpc.lib</NMakeOutput>
+    <CMakeExe>$(CurrentVsInstallRoot)\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe</CMakeExe>
   </PropertyGroup>
   <PropertyGroup>
-    <NMakeBuildCommandLine>mkdir "$(IntDir)"
+    <NMakeBuildCommandLine>if not exist "$(IntDir)" mkdir "$(IntDir)"
 cd "$(IntDir)"
-cmake -S "$(ProjectDir.TrimEnd('\'))" -DCMAKE_INSTALL_PREFIX="$(OutDir.TrimEnd('\'))" -DCMAKE_GENERATOR_INSTANCE="$(CurrentVsInstallRoot)" -DCMAKE_GENERATOR_PLATFORM=$(Platform) -DUSE_STATIC_CRT=ON
-cmake --build "$(IntDir.TrimEnd('\'))" --config $(Configuration) --target install</NMakeBuildCommandLine>
+"$(CMakeExe)" -S "$(ProjectDir.TrimEnd('\'))" -DCMAKE_INSTALL_PREFIX="$(OutDir.TrimEnd('\'))" -DCMAKE_GENERATOR_INSTANCE="$(CurrentVsInstallRoot)" -DCMAKE_GENERATOR_PLATFORM=$(Platform) -T $(PlatformToolset) -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DUSE_STATIC_CRT=ON
+"$(CMakeExe)" --build "$(IntDir.TrimEnd('\'))" --config $(Configuration) --target install</NMakeBuildCommandLine>
     <ExecutablePath>$(DevEnvDir)CommonExtensions\Microsoft\CMake\CMake\bin;$(ExecutablePath)</ExecutablePath>
-    <NMakeCleanCommandLine>rmdir /s/q "$(IntDir.TrimEnd('\'))"
-rmdir /s/q "$(OutDir.TrimEnd('\'))"</NMakeCleanCommandLine>
+    <NMakeCleanCommandLine>if exist "$(IntDir.TrimEnd('\'))" rmdir /s/q "$(IntDir.TrimEnd('\'))"
+if exist "$(OutDir.TrimEnd('\'))" rmdir /s/q "$(OutDir.TrimEnd('\'))"</NMakeCleanCommandLine>
   </PropertyGroup>
   <ItemDefinitionGroup>
   </ItemDefinitionGroup>
@@ -66,3 +138,4 @@ rmdir /s/q "$(OutDir.TrimEnd('\'))"</NMakeCleanCommandLine>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
+

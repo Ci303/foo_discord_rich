@@ -14,12 +14,13 @@ def update(gh_pages_dir: PathLike):
     root_dir = cur_dir.parent
 
     gh_pages_dir = Path(gh_pages_dir).resolve()
-    assert(gh_pages_dir.exists() and gh_pages_dir.is_dir())
+    if not gh_pages_dir.is_dir():
+        raise FileNotFoundError(f"GitHub Pages directory was not found: {gh_pages_dir}")
 
     ghp_gen_dir = gh_pages_dir/"assets"/"generated_files"
     if (ghp_gen_dir.exists()):
         shutil.rmtree(ghp_gen_dir)
-        ghp_gen_dir.mkdir(parents=True)
+    ghp_gen_dir.mkdir(parents=True, exist_ok=True)
 
     shutil.copytree(root_dir/"licenses", ghp_gen_dir/"licenses", dirs_exist_ok=True)
     
@@ -45,5 +46,5 @@ if __name__ == '__main__':
     )(
         update
     )(
-        gh_pages_dir
+        args.gh_pages_dir
     )

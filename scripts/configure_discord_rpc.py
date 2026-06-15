@@ -9,7 +9,8 @@ def configure():
     cur_dir = Path(__file__).parent.absolute()
     root_dir = cur_dir.parent
     discord_dir = root_dir/"submodules"/"discord-rpc"
-    assert(discord_dir.exists() and discord_dir.is_dir())
+    if not discord_dir.is_dir():
+        raise FileNotFoundError(f"Discord RPC submodule directory was not found: {discord_dir}")
 
     shutil.copy2(cur_dir/"additional_files"/"discord-rpc.vcxproj", str(discord_dir) + '/')
 

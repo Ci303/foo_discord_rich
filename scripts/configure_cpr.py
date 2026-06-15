@@ -9,7 +9,8 @@ def configure():
     cur_dir = Path(__file__).parent.absolute()
     root_dir = cur_dir.parent
     submodule_dir = root_dir/"submodules"/"cpr"
-    assert(submodule_dir.exists() and submodule_dir.is_dir())
+    if not submodule_dir.is_dir():
+        raise FileNotFoundError(f"CPR submodule directory was not found: {submodule_dir}")
 
     shutil.copy2(cur_dir/"additional_files"/"cpr.vcxproj", str(submodule_dir) + '/')
 

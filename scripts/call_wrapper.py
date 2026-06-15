@@ -4,8 +4,8 @@ import traceback
 import sys
 
 class SkippedError(Exception):
-     def __init__(self):
-         self.message = "Skipped error"
+    def __init__(self):
+        super().__init__("Skipped error")
 
 def final_call_decorator(start_msg: str,
                          success_msg: str,

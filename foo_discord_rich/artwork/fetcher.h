@@ -49,7 +49,7 @@ private:
     void StartThread();
     void StopThread();
 
-    void ThreadMain();
+    void ThreadMain( std::stop_token token );
 
     std::optional<qwr::u8string> ProcessFetchRequest( const MusicBrainzFetchRequest& request );
     std::optional<qwr::u8string> ProcessFetchRequest( const UploadRequest& request );

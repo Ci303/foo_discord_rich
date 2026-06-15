@@ -37,7 +37,7 @@ third-party notices are preserved.
 
 ### Prerequisites
 
-- Visual Studio 2022 with the MSVC v143 C++ toolset.
+- Visual Studio 2022 with the MSVC v145 C++ toolset, or Visual Studio 2026 with the MSVC v145 C++ toolset.
 - Windows 10 SDK.
 - Python 3.
 - NuGet package restore support for Visual Studio/MSBuild.
@@ -55,8 +55,14 @@ nuget restore workspaces\foo_discord_rich.sln
 ### Build and Package
 
 ```powershell
-msbuild workspaces\foo_discord_rich.sln /m /p:Configuration=Release /p:Platform=x64
-py scripts\pack_component.py --configuration Release --platform x64
+.\scripts\build.ps1 -Configuration Release -Platform x64
+```
+`build.ps1` runs MSBuild with the explicit `v145` toolset and `14.51.36231` tool binaries, then packages the artifact.
+
+To deploy directly into a local foobar2000 x64 user-components directory after build:
+
+```powershell
+.\scripts\build.ps1 -Configuration Release -Platform x64 -Deploy
 ```
 
 Replace `x64` with `Win32` for the 32-bit component build. Tagged releases are
@@ -65,3 +71,4 @@ built by GitHub Actions for both platforms.
 [changelog]: CHANGELOG.md
 [version_badge]: https://img.shields.io/github/release/Ci303/foo_discord_rich.svg
 [releases]: https://github.com/Ci303/foo_discord_rich/releases
+

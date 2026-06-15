@@ -8,19 +8,35 @@
 
 #include <qwr/algorithm.h>
 
+#include <cmath>
+#include <limits>
+#include <mutex>
+
 namespace
 {
+namespace config = drp::config;
 
 qwr::u8string EvaluateQueryForPlayingTrack( const metadb_handle_ptr& handle, const qwr::u8string& query )
 {
     static std::unordered_map<qwr::u8string, titleformat_object::ptr> queryToTitleFormat;
+    static std::mutex queryToTitleFormatMutex;
 
     auto pc = playback_control::get();
-    auto tf = qwr::FindOrDefault( queryToTitleFormat, query, titleformat_object::ptr{} );
+
+    titleformat_object::ptr tf;
+    {
+        std::scoped_lock lock{ queryToTitleFormatMutex };
+        tf = qwr::FindOrDefault( queryToTitleFormat, query, titleformat_object::ptr{} );
+        if ( tf.is_empty() )
+        {
+            titleformat_compiler::get()->compile_safe( tf, query.c_str() );
+            queryToTitleFormat.try_emplace( query, tf );
+        }
+    }
+
     if ( tf.is_empty() )
     {
-        titleformat_compiler::get()->compile_safe( tf, query.c_str() );
-        queryToTitleFormat.try_emplace( query, tf );
+        return {};
     }
 
     pfc::string8_fast result;
@@ -37,6 +53,64 @@ qwr::u8string EvaluateQueryForPlayingTrack( const metadb_handle_ptr& handle, con
     return result.c_str();
 }
 
+std::optional<drp::ArtworkFetcher::MusicBrainzFetchRequest> CreateMusicBrainzRequest( const metadb_handle_ptr& handle )
+{
+    if ( handle.is_empty() )
+    {
+        return std::nullopt;
+    }
+
+    const auto userReleaseMbid = EvaluateQueryForPlayingTrack( handle, "[$lower($if3($meta(MUSICBRAINZ_ALBUMID),$meta(MUSICBRAINZ ALBUM ID)))]" );
+    const auto artist = EvaluateQueryForPlayingTrack( handle, "$if3(%album artist%,%artist%,%composer%)" );
+    const auto album = EvaluateQueryForPlayingTrack( handle, "%album%" );
+
+    return drp::ArtworkFetcher::MusicBrainzFetchRequest{
+        .artist = artist,
+        .album = album,
+        .userReleaseMbidOpt = userReleaseMbid.empty() ? std::optional<qwr::u8string>{} : userReleaseMbid };
+}
+
+std::optional<drp::ArtworkFetcher::UploadRequest> CreateUploadRequest( const metadb_handle_ptr& handle )
+{
+    if ( handle.is_empty() )
+    {
+        return std::nullopt;
+    }
+
+    return drp::ArtworkFetcher::UploadRequest{
+        .artPinId = EvaluateQueryForPlayingTrack( handle, config::artUploadPinQuery ),
+        .handle = handle,
+        .uploadCommand = config::artUploadCmd };
+}
+
+std::optional<qwr::u8string> ResolveTrackArtUrl( const drp::internal::PresenceData& pd )
+{
+    if ( pd.metadb.is_empty() )
+    {
+        return std::nullopt;
+    }
+
+    if ( config::enableArtUpload )
+    {
+        const auto requestOpt = CreateUploadRequest( pd.metadb );
+        if ( requestOpt )
+        {
+            return drp::ArtworkFetcher::Get().GetArtUrl( *requestOpt );
+        }
+    }
+
+    if ( config::enableAlbumArtFetch )
+    {
+        const auto requestOpt = CreateMusicBrainzRequest( pd.metadb );
+        if ( requestOpt )
+        {
+            return drp::ArtworkFetcher::Get().GetArtUrl( *requestOpt );
+        }
+    }
+
+    return std::nullopt;
+}
+
 double ParseDoubleOrZero( const qwr::u8string& value )
 {
     if ( value.empty() )
@@ -48,13 +122,66 @@ double ParseDoubleOrZero( const qwr::u8string& value )
     {
         size_t processedChars = 0;
         const auto result = std::stold( value, &processedChars );
-        return ( processedChars ? static_cast<double>( result ) : 0 );
+        if ( !processedChars || !std::isfinite( result ) )
+        {
+            return 0;
+        }
+
+        return static_cast<double>( result );
     }
     catch ( const std::exception& )
     {
         drp::LogWarning( fmt::format( "Failed to parse playback time value: `{}`", value ) );
         return 0;
     }
+}
+
+int64_t RoundedNonNegativeSeconds( double value )
+{
+    if ( !std::isfinite( value ) || value <= 0 )
+    {
+        return 0;
+    }
+
+    constexpr auto maxSeconds = static_cast<double>( std::numeric_limits<int64_t>::max() );
+    if ( value >= maxSeconds )
+    {
+        return std::numeric_limits<int64_t>::max();
+    }
+
+    return std::llround( value );
+}
+
+int64_t AddTimestampOffset( int64_t timestamp, int64_t offset )
+{
+    if ( offset > std::numeric_limits<int64_t>::max() - timestamp )
+    {
+        return std::numeric_limits<int64_t>::max();
+    }
+
+    return timestamp + offset;
+}
+
+int64_t CurrentUnixTime()
+{
+    const auto now = std::time( nullptr );
+    return ( now < 0 ? 0 : static_cast<int64_t>( now ) );
+}
+
+void ApplyDiscordTextLimit( qwr::u8string& str )
+{
+    auto wideText = qwr::unicode::ToWide( str );
+    if ( wideText.size() == 1 )
+    {
+        wideText += ' ';
+    }
+    else if ( wideText.size() > 127 )
+    {
+        wideText.resize( 124 );
+        wideText += L"...";
+    }
+
+    str = qwr::unicode::ToU8( wideText );
 }
 
 } // namespace
@@ -84,7 +211,7 @@ PresenceData& PresenceData::operator=( const PresenceData& other )
     return *this;
 }
 
-bool PresenceData::operator==( const PresenceData& other )
+bool PresenceData::operator==( const PresenceData& other ) const
 {
     auto areStringsSame = []( const char* a, const char* b ) {
         return ( ( a == b ) || ( a && b && !strcmp( a, b ) ) );
@@ -101,7 +228,7 @@ bool PresenceData::operator==( const PresenceData& other )
            && trackLength == other.trackLength;
 }
 
-bool PresenceData::operator!=( const PresenceData& other )
+bool PresenceData::operator!=( const PresenceData& other ) const
 {
     return !operator==( other );
 }
@@ -128,6 +255,7 @@ void PresenceData::UpdateTextFieldPointers()
     presence.details = topText.c_str();
     presence.state = middleText.c_str();
     presence.largeImageText = bottomText.c_str();
+    presence.smallImageText = nullptr;
 }
 
 } // namespace drp::internal
@@ -169,45 +297,11 @@ PresenceModifier::~PresenceModifier()
 void PresenceModifier::UpdateImage()
 {
     auto& pd = presenceData_;
-    auto pc = playback_control::get();
 
-    auto setImageKey = [&pd]( const qwr::u8string& imageKey ) {
-        pd.largeImageKey = imageKey;
-        pd.presence.largeImageKey = pd.largeImageKey.empty() ? nullptr : pd.largeImageKey.c_str();
-    };
-
-    const auto artUrlOpt = [&]() -> std::optional<qwr::u8string> {
-        // TODO: extract to separate method
-        const auto metadb = pd.metadb;
-        if ( metadb.is_empty() )
-        {
-            return std::nullopt;
-        }
-
-        if ( config::enableArtUpload )
-        { // overrides art fetching
-            const ArtworkFetcher::UploadRequest request{
-                .artPinId = EvaluateQueryForPlayingTrack( metadb, config::artUploadPinQuery ),
-                .handle = metadb,
-                .uploadCommand = config::artUploadCmd };
-
-            return ArtworkFetcher::Get().GetArtUrl( request );
-        }
-        if ( config::enableAlbumArtFetch )
-        {
-            const auto userReleaseMbid = EvaluateQueryForPlayingTrack( metadb, "[$lower($if3($meta(MUSICBRAINZ_ALBUMID),$meta(MUSICBRAINZ ALBUM ID)))]" );
-            const ArtworkFetcher::MusicBrainzFetchRequest request{
-                .artist = EvaluateQueryForPlayingTrack( metadb, "$if3(%album artist%,%artist%,%composer%)" ),
-                .album = EvaluateQueryForPlayingTrack( metadb, "%album%" ),
-                .userReleaseMbidOpt = userReleaseMbid.empty() ? std::optional<qwr::u8string>{} : userReleaseMbid };
-
-            return ArtworkFetcher::Get().GetArtUrl( request );
-        }
-        return std::nullopt;
-    }();
+    const auto artUrlOpt = ResolveTrackArtUrl( pd );
     if ( artUrlOpt )
     {
-        setImageKey( *artUrlOpt );
+        SetImageKey( pd.largeImageKey, *artUrlOpt, pd.presence.largeImageKey );
         return;
     }
 
@@ -215,17 +309,17 @@ void PresenceModifier::UpdateImage()
     {
     case config::ImageSetting::Light:
     {
-        setImageKey( config::largeImageId_Light );
+        SetImageKey( pd.largeImageKey, config::largeImageId_Light, pd.presence.largeImageKey );
         break;
     }
     case config::ImageSetting::Dark:
     {
-        setImageKey( config::largeImageId_Dark );
+        SetImageKey( pd.largeImageKey, config::largeImageId_Dark, pd.presence.largeImageKey );
         break;
     }
     case config::ImageSetting::Disabled:
     {
-        setImageKey( qwr::u8string{} );
+        SetImageKey( pd.largeImageKey, qwr::u8string{}, pd.presence.largeImageKey );
         break;
     }
     }
@@ -236,28 +330,27 @@ void PresenceModifier::UpdateSmallImage()
     auto& pd = presenceData_;
     auto pc = playback_control::get();
 
-    auto setImageKey = [&pd]( const qwr::u8string& imageKey ) {
-        pd.smallImageKey = imageKey;
-        pd.presence.smallImageKey = pd.smallImageKey.empty() ? nullptr : pd.smallImageKey.c_str();
-    };
-
     const bool usePausedImage = ( pc->is_paused() || config::swapSmallImages );
 
     switch ( config::smallImageSettings )
     {
     case config::ImageSetting::Light:
     {
-        setImageKey( usePausedImage ? config::pausedImageId_Light : config::playingImageId_Light );
+        SetImageKey( pd.smallImageKey,
+            usePausedImage ? config::pausedImageId_Light : config::playingImageId_Light,
+            pd.presence.smallImageKey );
         break;
     }
     case config::ImageSetting::Dark:
     {
-        setImageKey( usePausedImage ? config::pausedImageId_Dark : config::playingImageId_Dark );
+        SetImageKey( pd.smallImageKey,
+            usePausedImage ? config::pausedImageId_Dark : config::playingImageId_Dark,
+            pd.presence.smallImageKey );
         break;
     }
     case config::ImageSetting::Disabled:
     {
-        setImageKey( qwr::u8string{} );
+        SetImageKey( pd.smallImageKey, qwr::u8string{}, pd.presence.smallImageKey );
         break;
     }
     }
@@ -280,27 +373,13 @@ void PresenceModifier::UpdateTrack( metadb_handle_ptr metadb )
     const auto queryData = [metadb = pd.metadb]( const qwr::u8string& query ) {
         return EvaluateQueryForPlayingTrack( metadb, query );
     };
-    const auto fixStringLength = []( qwr::u8string& str ) {
-        // Discord uses utf16 when applying text length limits
-        auto strW = qwr::unicode::ToWide( str );
-        if ( strW.size() == 1 )
-        { // minimum allowed non-zero string length is 2, so we need to pad it.
-            strW += ' ';
-        }
-        else if ( strW.size() > 127 )
-        { // maximum allowed length is 127
-            strW.resize( 124 );
-            strW += L"...";
-        }
-        str = qwr::unicode::ToU8( strW );
-    };
 
     pd.topText = queryData( config::topTextQuery );
-    fixStringLength( pd.topText );
+    ApplyDiscordTextLimit( pd.topText );
     pd.middleText = queryData( config::middleTextQuery );
-    fixStringLength( pd.middleText );
+    ApplyDiscordTextLimit( pd.middleText );
     pd.bottomText = queryData( config::bottomTextQuery );
-    fixStringLength( pd.bottomText );
+    ApplyDiscordTextLimit( pd.bottomText );
     pd.UpdateTextFieldPointers();
 
     const qwr::u8string lengthStr = queryData( "[%length_seconds_fp%]" );
@@ -315,19 +394,22 @@ void PresenceModifier::UpdateDuration( double currentTime )
     auto& pd = presenceData_;
     auto pc = playback_control::get();
     const config::TimeSetting timeSetting = ( ( pd.trackLength && pc->is_playing() && !pc->is_paused() ) ? config::timeSettings : config::TimeSetting::Disabled );
+    const auto now = CurrentUnixTime();
+    const auto currentSeconds = RoundedNonNegativeSeconds( currentTime );
     switch ( timeSetting )
     {
     case config::TimeSetting::Elapsed:
     {
-        pd.presence.startTimestamp = std::time( nullptr ) - std::llround( currentTime );
+        pd.presence.startTimestamp = ( currentSeconds > now ? 0 : now - currentSeconds );
         pd.presence.endTimestamp = 0;
 
         break;
     }
     case config::TimeSetting::Remaining:
     {
+        const auto remainingSeconds = RoundedNonNegativeSeconds( pd.trackLength - currentTime );
         pd.presence.startTimestamp = 0;
-        pd.presence.endTimestamp = std::time( nullptr ) + std::max<uint64_t>( 0, std::llround( pd.trackLength - currentTime ) );
+        pd.presence.endTimestamp = AddTimestampOffset( now, remainingSeconds );
 
         break;
     }
@@ -344,7 +426,7 @@ void PresenceModifier::UpdateDuration( double currentTime )
 void PresenceModifier::UpdateDuration( double currentTime, double totalLength )
 {
     auto& pd = presenceData_;
-    pd.trackLength = totalLength;
+    pd.trackLength = ( std::isfinite( totalLength ) && totalLength > 0 ? totalLength : 0 );
     UpdateDuration( currentTime );
 }
 
@@ -353,6 +435,12 @@ void PresenceModifier::DisableDuration()
     auto& pd = presenceData_;
     pd.presence.startTimestamp = 0;
     pd.presence.endTimestamp = 0;
+}
+
+void PresenceModifier::SetImageKey( qwr::u8string& localKey, const qwr::u8string& imageKey, const char*& destination )
+{
+    localKey = imageKey;
+    destination = localKey.empty() ? nullptr : localKey.c_str();
 }
 
 bool PresenceModifier::HasChanged() const

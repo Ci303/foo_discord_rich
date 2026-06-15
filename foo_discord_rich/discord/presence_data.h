@@ -11,8 +11,8 @@ struct PresenceData
     PresenceData( const PresenceData& other );
 
     PresenceData& operator=( const PresenceData& other );
-    bool operator==( const PresenceData& other );
-    bool operator!=( const PresenceData& other );
+    bool operator==( const PresenceData& other ) const;
+    bool operator!=( const PresenceData& other ) const;
 
     void UpdateTextFieldPointers();
 
@@ -64,6 +64,7 @@ private:
 
 private:
     DiscordAdapter& parent_;
+    void SetImageKey( qwr::u8string& value, const qwr::u8string& imageKey, const char*& destination );
 
     bool isDisabled_ = false;
     drp::internal::PresenceData presenceData_;

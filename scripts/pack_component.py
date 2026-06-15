@@ -7,16 +7,28 @@ from zipfile import ZipFile
 
 import call_wrapper
 
+
 def path_basename_tuple(path):
     return (path, path.name)
 
 
+def require_file(path):
+    if not path.is_file():
+        raise FileNotFoundError(f"Required file was not found: {path}")
+    return path
+
+
+def require_dir(path):
+    if not path.is_dir():
+        raise FileNotFoundError(f"Required directory was not found: {path}")
+    return path
+
+
 def zipdir(zip_file, path, arc_path):
-    assert(path.exists() and path.is_dir())
+    require_dir(path)
 
     for file in path.rglob("*"):
-        if (file.name.startswith(".")):
-            # skip `hidden` files
+        if file.name.startswith(".") or not file.is_file():
             continue
         if (arc_path):
             file_arc_path = f"{arc_path}/{file.relative_to(path)}"
@@ -29,7 +41,7 @@ def pack(platform, configuration):
     cur_dir = Path(__file__).parent.absolute()
     root_dir = cur_dir.parent
     result_machine_dir = root_dir/"_result"/f"{platform}_{configuration}" 
-    assert(result_machine_dir.exists() and result_machine_dir.is_dir())
+    require_dir(result_machine_dir)
     is_debug = configuration.lower() == 'debug'
 
     output_dir = result_machine_dir
@@ -41,14 +53,14 @@ def pack(platform, configuration):
     with ZipFile(component_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         zipdir(z, root_dir/'licenses', 'licenses')
 
-        z.write(*path_basename_tuple(root_dir/"LICENSE"))
-        z.write(*path_basename_tuple(root_dir/"CHANGELOG.md"))
+        z.write(*path_basename_tuple(require_file(root_dir/"LICENSE")))
+        z.write(*path_basename_tuple(require_file(root_dir/"CHANGELOG.md")))
 
-        z.write(*path_basename_tuple(result_machine_dir/"bin"/"foo_discord_rich.dll"))
+        z.write(*path_basename_tuple(require_file(result_machine_dir/"bin"/"foo_discord_rich.dll")))
 
         if (is_debug):
             # Only debug package should have pdbs inside
-            z.write(*path_basename_tuple(result_machine_dir/"dbginfo"/"foo_discord_rich.pdb"))
+            z.write(*path_basename_tuple(require_file(result_machine_dir/"dbginfo"/"foo_discord_rich.pdb")))
 
     print(f"Generated file: {component_zip}")
 
@@ -59,7 +71,7 @@ def pack(platform, configuration):
             pdb_zip.unlink()
 
         with ZipFile(pdb_zip, "w", zipfile.ZIP_DEFLATED) as z:
-            z.write(*path_basename_tuple(result_machine_dir/"dbginfo"/"foo_discord_rich.pdb"))
+            z.write(*path_basename_tuple(require_file(result_machine_dir/"dbginfo"/"foo_discord_rich.pdb")))
 
         print(f"Generated file: {pdb_zip}")
 
