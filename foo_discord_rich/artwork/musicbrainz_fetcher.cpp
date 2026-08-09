@@ -12,10 +12,48 @@ using namespace drp;
 
 const cpr::Timeout kRequestTimeout{ 10000 };
 const cpr::ConnectTimeout kConnectTimeout{ 5000 };
+const std::chrono::milliseconds kMinimumRequestInterval{ 1100 };
+constexpr size_t kMaxLoggedResponseBytes = 4096;
+constexpr int kMaxTransientAttempts = 3;
 const cpr::Header kJsonRequestHeaders{
     { "Accept", "application/json" },
-    { "User-Agent", "foo_discord_rich/2.0.3-ci303.2 (https://github.com/Ci303/foo_discord_rich)" },
+    { "User-Agent", DRP_UNDERSCORE_NAME "/" DRP_VERSION " (" DRP_HOMEPAGE ")" },
 };
+
+void ThrottleRequest()
+{
+    static std::mutex mutex;
+    static std::chrono::steady_clock::time_point lastRequest;
+    std::scoped_lock lock{ mutex };
+    const auto now = std::chrono::steady_clock::now();
+    const auto nextRequest = lastRequest + kMinimumRequestInterval;
+    if ( nextRequest > now )
+    {
+        std::this_thread::sleep_until( nextRequest );
+    }
+    lastRequest = std::chrono::steady_clock::now();
+}
+
+template <typename... Args>
+cpr::Response GetWithRetry( abort_callback& aborter, Args... args )
+{
+    cpr::Response response;
+    for ( int attempt = 1; attempt <= kMaxTransientAttempts; ++attempt )
+    {
+        aborter.check();
+        ThrottleRequest();
+        response = cpr::Get( args... );
+        if ( response.status_code != 429 && response.status_code < 500 )
+        {
+            break;
+        }
+        if ( attempt < kMaxTransientAttempts )
+        {
+            std::this_thread::sleep_for( std::chrono::seconds{ attempt } );
+        }
+    }
+    return response;
+}
 
 bool IsValidGuid( const qwr::u8string& str )
 {
@@ -33,7 +71,13 @@ void LogRequest( const cpr::Response& resp )
 {
     if ( config::advanced::logWebRequests )
     {
-        LogDebug( "Request: {}", resp.url.str() );
+        auto requestUrl = resp.url.str();
+        if ( const auto queryStart = requestUrl.find( '?' ); queryStart != qwr::u8string::npos )
+        {
+            requestUrl.resize( queryStart );
+            requestUrl += "?<redacted>";
+        }
+        LogDebug( "Request: {}", requestUrl );
     }
     if ( config::advanced::logWebResponses )
     {
@@ -43,7 +87,7 @@ void LogRequest( const cpr::Response& resp )
             "  Body:\n"
             "{}\n",
             resp.status_code,
-            resp.text );
+            resp.text.substr( 0, kMaxLoggedResponseBytes ) );
     }
 }
 
@@ -53,7 +97,7 @@ std::optional<qwr::u8string> FetchReleaseMbid( const qwr::u8string& artist, cons
 {
     using json = nlohmann::json;
 
-    auto releaseGroupResp = cpr::Get(
+    auto releaseGroupResp = GetWithRetry( aborter,
         cpr::Url{ "https://www.musicbrainz.org/ws/2/release-group" },
         kConnectTimeout,
         kRequestTimeout,
@@ -87,15 +131,20 @@ std::optional<qwr::u8string> FetchReleaseMbid( const qwr::u8string& artist, cons
         for ( const auto& release: releaseGroups.front().at( "releases" ) )
         {
             const auto releaseId = release.at( "id" ).get<qwr::u8string>();
-            auto releaseResp = cpr::Get(
+            auto releaseResp = GetWithRetry( aborter,
                 cpr::Url{ fmt::format( "https://www.musicbrainz.org/ws/2/release/{}", releaseId ) },
                 kConnectTimeout,
                 kRequestTimeout,
                 kJsonRequestHeaders );
             LogRequest( releaseResp );
+            if ( releaseResp.status_code == 404 )
+            {
+                continue;
+            }
             if ( releaseResp.status_code != 200 )
             {
-                throw qwr::QwrException( "Failed to fetch MB release\nCode: {}\nError: {}", releaseResp.status_code, releaseResp.reason );
+                LogWarning( fmt::format( "Skipping MusicBrainz release {} after HTTP {}", releaseId, releaseResp.status_code ) );
+                continue;
             }
 
             auto jRelease = nlohmann::json::parse( releaseResp.text );
@@ -116,13 +165,13 @@ std::optional<qwr::u8string> FetchReleaseMbid( const qwr::u8string& artist, cons
 }
 
 /// @throw qwr::QwrException
-std::optional<qwr::u8string> FetchAlbumArtUrl( const qwr::u8string& mbid )
+std::optional<qwr::u8string> FetchAlbumArtUrl( const qwr::u8string& mbid, abort_callback& aborter )
 {
-    auto resp = cpr::Get(
+    auto resp = GetWithRetry( aborter,
         cpr::Url{ fmt::format( "https://coverartarchive.org/release/{}/front-1200", mbid ) },
         kConnectTimeout,
         kRequestTimeout,
-        cpr::Header{ { "User-Agent", "foo_discord_rich/2.0.3-ci303.2 (https://github.com/Ci303/foo_discord_rich)" } } );
+        cpr::Header{ { "User-Agent", DRP_UNDERSCORE_NAME "/" DRP_VERSION " (" DRP_HOMEPAGE ")" } } );
     LogRequest( resp );
     if ( resp.status_code == 404 )
     {
@@ -152,7 +201,7 @@ std::optional<qwr::u8string> FetchArt( const qwr::u8string& artist, const qwr::u
         }
         else
         {
-            const auto urlOpt = FetchAlbumArtUrl( *userReleaseMbidOpt );
+            const auto urlOpt = FetchAlbumArtUrl( *userReleaseMbidOpt, aborter );
             return urlOpt;
         }
     }
@@ -168,7 +217,7 @@ std::optional<qwr::u8string> FetchArt( const qwr::u8string& artist, const qwr::u
 
     aborter.check();
 
-    return FetchAlbumArtUrl( *releaseMbidOpt );
+    return FetchAlbumArtUrl( *releaseMbidOpt, aborter );
 }
 
 } // namespace drp::musicbrainz

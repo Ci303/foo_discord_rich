@@ -182,6 +182,7 @@
     <ClInclude Include="utils\json_std_extenders.h" />
     <ClInclude Include="utils\logging.h" />
     <ClInclude Include="utils\subprocess_executor.h" />
+    <ClInclude Include="utils\validation.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="discord\presence_data.h" />

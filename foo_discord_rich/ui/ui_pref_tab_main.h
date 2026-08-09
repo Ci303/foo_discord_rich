@@ -38,7 +38,7 @@ public:
         COMMAND_HANDLER_EX( IDC_CHECK_FETCH_ALBUM_ART, BN_CLICKED, OnDdxUiChange )
         COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_IMG_LIGHT, IDC_RADIO_IMG_DISABLED, BN_CLICKED, OnDdxUiChange )
         COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_PLAYBACK_IMG_LIGHT, IDC_RADIO_PLAYBACK_IMG_DISABLED, BN_CLICKED, OnDdxUiChange )
-        COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_TIME_ELAPSED, IDC_RADIO_TIME_DISABLED, BN_CLICKED, OnDdxUiChange )
+        COMMAND_HANDLER_EX( IDC_BUTTON_PREVIEW_PRESENCE, BN_CLICKED, OnPreviewPresenceClick )
         COMMAND_HANDLER_EX( IDC_CHECK_DISABLE_WHEN_PAUSED, BN_CLICKED, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_CHECK_SWAP_STATUS, BN_CLICKED, OnDdxUiChange )
     END_MSG_MAP()
@@ -60,6 +60,7 @@ private:
     BOOL OnInitDialog( HWND hwndFocus, LPARAM lParam );
     void OnDdxUiChange( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnHelpUrlClick( UINT uNotifyCode, int nID, CWindow wndCtl );
+    void OnPreviewPresenceClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnChanged();
     void DoFullDdxToUi();
 
@@ -80,7 +81,6 @@ private:
                             enableAlbumArtFetch,
                             largeImageSettings,
                             smallImageSettings,
-                            timeSettings,
                             disableWhenPaused,
                             swapSmallImages )
     // clang-format on
@@ -88,7 +88,7 @@ private:
 #undef SPTF_DEFINE_OPTIONS
 #undef SPTF_DEFINE_OPTION
 
-    std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 10> ddxOptions_;
+    std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 9> ddxOptions_;
 
     CHyperLink helpUrl_;
 

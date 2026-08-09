@@ -22,6 +22,8 @@ private:
     bool HasPresence() const;
     void SendPresence();
     void ClearPresence();
+    void ScheduleCallbackPump();
+    void PumpCallbacks( uint64_t generation );
 
 private:
     DiscordAdapter() = default;
@@ -32,7 +34,9 @@ private:
 
 private:
     bool isInitialized_ = false;
+    bool isConnected_ = false;
     bool hasPresence_ = false;
+    uint64_t callbackGeneration_ = 0;
     qwr::u8string appToken_;
     drp::internal::PresenceData presenceData_;
 };

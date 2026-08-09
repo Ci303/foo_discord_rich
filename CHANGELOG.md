@@ -2,6 +2,7 @@
 
 #### Table of Contents
 - [Unreleased](#unreleased)
+- [2.0.3-ci303.5](#203-ci3035---2026-08-08)
 - [2.0.3-ci303.2](#203-ci3032---2026-05-04)
 - [2.0.2](#202---2024-08-11)
 - [2.0.1](#201---2024-08-11)
@@ -13,6 +14,21 @@
 ___
 
 ## [Unreleased][]
+
+## [2.0.3-ci303.5][] - 2026-08-08
+
+### Added
+- Added current-track Rich Presence previews and an artwork-uploader test action.
+- Added focused validation and release-metadata tests to CI.
+
+### Changed
+- Restored Discord presence automatically after Discord starts or reconnects.
+- Added bounded MusicBrainz retries, request pacing, response-log truncation, and resilient per-release lookup.
+- Reworked the artwork cache with positive and negative expiry, bounded size, atomic persistence, and legacy-cache migration.
+- Made embedded-art temporary files unique and self-cleaning, restricted generated file extensions, and required secure uploader URLs.
+- Removed non-functional duration controls and reduced sensitive uploader logging.
+- Restricted GitHub release write permission to the release job and enforced tag/version consistency.
+- Made submodule setup discover configured submodules from `.gitmodules` instead of generated directories.
 
 ### Fixed
 - Fixed an artwork worker startup race that could read the worker thread handle before it existed.
@@ -117,7 +133,8 @@ ___
 ## [1.0.0][] - 2018-11-06
 Initial release.
 
-[unreleased]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.2...HEAD
+[unreleased]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.5...HEAD
+[2.0.3-ci303.5]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.2...v2.0.3-ci303.5
 [2.0.3-ci303.2]: https://github.com/Ci303/foo_discord_rich/releases/tag/v2.0.3-ci303.2
 [2.0.2]: https://github.com/TheQwertiest/foo_discord_rich/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/TheQwertiest/foo_discord_rich/compare/v2.0.0...v2.0.1

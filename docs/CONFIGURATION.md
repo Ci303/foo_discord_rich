@@ -13,6 +13,9 @@ The component exposes three text fields:
 - Middle: usually the artist.
 - Bottom: usually the album, release, playlist, or playback context.
 
+Use **Preview current track** to evaluate the unsaved Top, Middle, and Bottom
+fields against the currently playing track before applying the settings.
+
 Discord's `Listening to ...` application label is controlled by Discord and
 cannot be changed per track. The title-formatting fields below it are the parts
 this component can update dynamically.
@@ -189,10 +192,17 @@ For automatic artwork:
    - `MUSICBRAINZ ALBUM ID`
 
 Artwork is cached by artist/album or upload pin so repeat plays do not need to
-fetch the same art again.
+fetch the same art again. Successful results are refreshed periodically, while
+"not found" results expire sooner so temporary metadata and service problems do
+not require manual cache clearing.
 
 Use `Advanced > Art cache > Clear cache` if a bad lookup is cached or if you
 want the component to retry artwork for albums that previously failed.
+
+Use **Test** beside the upload command to run the configured uploader against
+the current track. The command may take up to ten seconds and the result is
+shown without applying the preferences. Upload commands are executable programs
+and should only be configured from a source you trust.
 
 ## Recommended Settings
 

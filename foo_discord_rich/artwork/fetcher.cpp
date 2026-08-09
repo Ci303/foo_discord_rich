@@ -14,17 +14,19 @@
 #include <qwr/file_helpers.h>
 #include <qwr/thread_name_setter.h>
 #include <qwr/visitor.h>
+#include <utils/validation.h>
 
 namespace fs = std::filesystem;
 
 namespace
 {
 
-using ArtPinIdToArtUrl = std::unordered_map<qwr::u8string, std::optional<qwr::u8string>>;
-
 const std::chrono::seconds kRequestProcessingDelay{ 2 };
+const std::chrono::seconds kPositiveCacheLifetime{ std::chrono::hours{ 24 * 30 } };
+const std::chrono::seconds kNegativeCacheLifetime{ std::chrono::hours{ 6 } };
 constexpr std::uintmax_t kMaxCacheFileBytes = 4 * 1024 * 1024;
 constexpr size_t kMaxArtPinIdBytes = 1024;
+constexpr size_t kMaxCacheEntries = 2048;
 
 }
 
@@ -65,9 +67,10 @@ std::optional<qwr::u8string> GenerateArtPinId( const drp::ArtworkFetcher::FetchR
     return artPinId;
 }
 
-bool HasCachedArt( const ArtPinIdToArtUrl& cache, const qwr::u8string& artPinId )
+int64_t CurrentUnixTime()
 {
-    return cache.find( artPinId ) != cache.end();
+    const auto now = std::time( nullptr );
+    return now < 0 ? 0 : static_cast<int64_t>( now );
 }
 
 bool IsRequestExecutable( const drp::ArtworkFetcher::FetchRequest& request )
@@ -87,12 +90,13 @@ bool IsDiscordImageKeyInvalid( const qwr::u8string& imageKey )
 {
     try
     {
-        if ( qwr::unicode::ToWide( imageKey ).length() <= 254 )
+        qwr::unicode::ToWide( imageKey );
+        if ( drp::validation::IsSecureImageUrl( imageKey ) )
         {
             return false;
         }
 
-        drp::LogError( fmt::format( "Failed to process art URL `{}`:\nlength is bigger than 254", imageKey ) );
+        drp::LogError( "Failed to process art URL: expected an HTTPS URL without whitespace, at most 254 bytes long" );
         return true;
     }
     catch ( const std::exception& e )
@@ -136,10 +140,15 @@ std::optional<qwr::u8string> ArtworkFetcher::GetArtUrl( const FetchRequest& requ
 {
     std::unique_lock lock( mutex_ );
 
-        const auto cacheIt = artPinIdToArtUrl_.find( *artPinIdOpt );
+        auto cacheIt = artPinIdToArtUrl_.find( *artPinIdOpt );
         if ( cacheIt != artPinIdToArtUrl_.end() )
         {
-            return cacheIt->second;
+            const auto lifetime = cacheIt->second.artUrl ? kPositiveCacheLifetime : kNegativeCacheLifetime;
+            if ( drp::validation::IsCacheEntryFresh( cacheIt->second.fetchedAt, CurrentUnixTime(), lifetime.count() ) )
+            {
+                return cacheIt->second.artUrl;
+            }
+            artPinIdToArtUrl_.erase( cacheIt );
         }
 
         if ( !IsRequestExecutable( request ) )
@@ -163,10 +172,15 @@ void ArtworkFetcher::LoadCache( bool throwOnError )
 
     try
     {
-        const auto cachePath = GetCacheFilePath();
+        auto cachePath = GetCacheFilePath();
         if ( !fs::exists( cachePath ) )
         {
-            return;
+            const auto legacyCachePath = drp::path::ImageDir() / "art_urls.v2.0.1.json";
+            if ( !fs::exists( legacyCachePath ) )
+            {
+                return;
+            }
+            cachePath = legacyCachePath;
         }
         if ( fs::file_size( cachePath ) > kMaxCacheFileBytes )
         {
@@ -176,7 +190,27 @@ void ArtworkFetcher::LoadCache( bool throwOnError )
         const auto content = qwr::file::ReadFile( cachePath, CP_UTF8 );
 
         decltype( artPinIdToArtUrl_ ) loadedCache;
-        json::parse( content ).get_to( loadedCache );
+        const auto root = json::parse( content );
+        const auto& entries = root.contains( "entries" ) ? root.at( "entries" ) : root;
+        for ( const auto& [key, value]: entries.items() )
+        {
+            if ( key.size() > kMaxArtPinIdBytes || loadedCache.size() >= kMaxCacheEntries )
+            {
+                continue;
+            }
+            CacheEntry entry;
+            if ( value.is_object() )
+            {
+                entry.artUrl = value.at( "url" ).get<std::optional<qwr::u8string>>();
+                entry.fetchedAt = value.at( "fetched_at" ).get<int64_t>();
+            }
+            else
+            {
+                entry.artUrl = value.get<std::optional<qwr::u8string>>();
+                entry.fetchedAt = 0;
+            }
+            loadedCache.emplace( key, std::move( entry ) );
+        }
 
         {
             std::unique_lock lock( mutex_ );
@@ -232,8 +266,19 @@ void ArtworkFetcher::SaveCache()
             cacheCopy = artPinIdToArtUrl_;
         }
 
-        const auto content = json( cacheCopy ).dump( 2 );
-        qwr::file::WriteFile( cachePath, content, false );
+        json entries = json::object();
+        for ( const auto& [key, entry]: cacheCopy )
+        {
+            entries[key] = json{ { "url", entry.artUrl }, { "fetched_at", entry.fetchedAt } };
+        }
+        const auto content = json{ { "version", 3 }, { "entries", std::move( entries ) } }.dump( 2 );
+        const auto temporaryPath = fs::u8path( cachePath.u8string() + ".tmp" );
+        qwr::file::WriteFile( temporaryPath, content, false );
+        if ( !MoveFileExW( temporaryPath.c_str(), cachePath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH ) )
+        {
+            fs::remove( temporaryPath );
+            throw fs::filesystem_error( "Failed to atomically replace art cache", cachePath, std::error_code( GetLastError(), std::system_category() ) );
+        }
     }
     catch ( const qwr::QwrException& e )
     {
@@ -268,6 +313,11 @@ void ArtworkFetcher::ClearCache()
         {
             fs::remove( cachePath );
         }
+        const auto legacyCachePath = drp::path::ImageDir() / "art_urls.v2.0.1.json";
+        if ( fs::exists( legacyCachePath ) )
+        {
+            fs::remove( legacyCachePath );
+        }
     }
     catch ( const fs::filesystem_error& e )
     {
@@ -277,7 +327,7 @@ void ArtworkFetcher::ClearCache()
 
 std::filesystem::path ArtworkFetcher::GetCacheFilePath()
 {
-    static const auto cachePath = drp::path::ImageDir() / "art_urls.v2.0.1.json";
+    static const auto cachePath = drp::path::ImageDir() / "art_urls.v3.json";
     return cachePath;
 }
 
@@ -327,7 +377,7 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
                 if ( const auto artPinIdOpt = GenerateArtPinId( *currentRequestOpt_ );
                      artPinIdOpt )
                 {
-                    if ( HasCachedArt( artPinIdToArtUrl_, *artPinIdOpt ) )
+                    if ( artPinIdToArtUrl_.contains( *artPinIdOpt ) )
                     {
                         currentRequestOpt_.reset();
                         lastRequest.reset();
@@ -348,15 +398,16 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
             }
         }
 
-        auto artUrlOpt = std::visit( [&]( const auto& arg ) { return ProcessFetchRequest( arg ); }, *lastRequest );
-        if ( !artUrlOpt && ( qwr::GlobalAbortCallback::GetInstance().is_aborting() || token.stop_requested() ) )
+        auto outcome = std::visit( [&]( const auto& arg ) { return ProcessFetchRequest( arg ); }, *lastRequest );
+        if ( !outcome.artUrl && ( qwr::GlobalAbortCallback::GetInstance().is_aborting() || token.stop_requested() ) )
         { // do not save nullopt if interrupted, because it might actually had the image
             return;
         }
 
-        if ( artUrlOpt && IsDiscordImageKeyInvalid( *artUrlOpt ) )
+        if ( outcome.artUrl && IsDiscordImageKeyInvalid( *outcome.artUrl ) )
         {
-            artUrlOpt.reset();
+            outcome.artUrl.reset();
+            outcome.cacheable = false;
         }
 
         const auto artPinIdOpt = GenerateArtPinId( *lastRequest );
@@ -368,13 +419,26 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
         {
             std::unique_lock lock( mutex_ );
 
-            artPinIdToArtUrl_.try_emplace( *artPinIdOpt, artUrlOpt );
+            if ( outcome.cacheable )
+            {
+                if ( artPinIdToArtUrl_.size() >= kMaxCacheEntries )
+                {
+                    const auto oldest = std::min_element( artPinIdToArtUrl_.begin(), artPinIdToArtUrl_.end(), []( const auto& left, const auto& right ) {
+                        return left.second.fetchedAt < right.second.fetchedAt;
+                    } );
+                    if ( oldest != artPinIdToArtUrl_.end() )
+                    {
+                        artPinIdToArtUrl_.erase( oldest );
+                    }
+                }
+                artPinIdToArtUrl_.insert_or_assign( *artPinIdOpt, CacheEntry{ outcome.artUrl, CurrentUnixTime() } );
+            }
 
             if ( lastRequest == currentRequestOpt_ )
             {
                 currentRequestOpt_.reset();
 
-                if ( artUrlOpt && !token.stop_requested() && !qwr::GlobalAbortCallback::GetInstance().is_aborting() )
+                if ( outcome.artUrl && !token.stop_requested() && !qwr::GlobalAbortCallback::GetInstance().is_aborting() )
                 {
                     fb2k::inMainThread( [] {
                         if ( qwr::GlobalAbortCallback::GetInstance().is_aborting() )
@@ -392,57 +456,57 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
     }
 }
 
-std::optional<qwr::u8string> ArtworkFetcher::ProcessFetchRequest( const MusicBrainzFetchRequest& request )
+ArtworkFetcher::FetchOutcome ArtworkFetcher::ProcessFetchRequest( const MusicBrainzFetchRequest& request )
 {
     try
     {
-        return musicbrainz::FetchArt( request.artist, request.album, request.userReleaseMbidOpt );
+        return { musicbrainz::FetchArt( request.artist, request.album, request.userReleaseMbidOpt ), true };
     }
     catch ( const qwr::QwrException& e )
     {
         LogError( e.what() );
-        return std::nullopt;
+        return {};
     }
     catch ( const exception_aborted& /*e*/ )
     {
-        return std::nullopt;
+        return {};
     }
     catch ( const std::exception& e )
     {
         LogError( fmt::format( "Unexpected MusicBrainz art fetch failure: {}", e.what() ) );
-        return std::nullopt;
+        return {};
     }
     catch ( ... )
     {
         LogError( "Unexpected MusicBrainz art fetch failure" );
-        return std::nullopt;
+        return {};
     }
 }
 
-std::optional<qwr::u8string> ArtworkFetcher::ProcessFetchRequest( const UploadRequest& request )
+ArtworkFetcher::FetchOutcome ArtworkFetcher::ProcessFetchRequest( const UploadRequest& request )
 {
     try
     {
-        return UploadArt( request.handle, request.uploadCommand );
+        return { UploadArt( request.handle, request.uploadCommand ), true };
     }
     catch ( const qwr::QwrException& e )
     {
         LogError( e.what() );
-        return std::nullopt;
+        return {};
     }
     catch ( const exception_aborted& /*e*/ )
     {
-        return std::nullopt;
+        return {};
     }
     catch ( const pfc::exception& e )
     {
         LogError( fmt::format( "Art upload failed: {}", e.what() ) );
-        return std::nullopt;
+        return {};
     }
     catch ( ... )
     {
         LogError( "Unexpected art upload failure" );
-        return std::nullopt;
+        return {};
     }
 }
 

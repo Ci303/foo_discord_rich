@@ -15,6 +15,7 @@ namespace
 {
 
 std::chrono::seconds kMaxWaitTime{ 10 };
+namespace fs = std::filesystem;
 
 }
 
@@ -32,10 +33,24 @@ struct ArtData
 namespace
 {
 
-const qwr::u8string& GetTempImageFilePathTemplate()
+qwr::u8string CreateTempImageFilePath( qwr::u8string_view extension )
 {
-    static const qwr::u8string tmpImagePath{ ( drp::path::ImageDir() / "tmp_image." ).u8string() };
-    return tmpImagePath;
+    fs::create_directories( drp::path::ImageDir() );
+    for ( unsigned attempt = 0; attempt < 100; ++attempt )
+    {
+        const auto filename = fmt::format(
+            "upload-{}-{}-{}.{}",
+            GetCurrentProcessId(),
+            GetTickCount64(),
+            attempt,
+            extension );
+        const auto path = drp::path::ImageDir() / filename;
+        if ( !fs::exists( path ) )
+        {
+            return path.u8string();
+        }
+    }
+    throw qwr::QwrException( "Failed to allocate a unique temporary artwork path" );
 }
 
 std::optional<ArtData> GetArtData( const metadb_handle_ptr& handle, abort_callback& aborter )
@@ -131,23 +146,18 @@ qwr::u8string SaveArtToFile( const album_art_data_ptr& pArtData, abort_callback&
         }
         qwr::u8string_view mime = *mimeOpt;
 
-        // Use mime type extension for image/ mime types. Not perfect and will fail for some of the more exotic types like svg
-        constexpr qwr::u8string_view imagePrefix = "image/";
-        if ( !mime.starts_with( imagePrefix ) )
-        {
-            return std::nullopt;
-        }
-
-        mime.remove_prefix( imagePrefix.size() );
-        if ( mime.empty() )
-        {
-            return std::nullopt;
-        }
-
-        return qwr::u8string{ mime.data(), mime.size() };
+        static const std::unordered_map<qwr::u8string_view, qwr::u8string_view> mimeToExtension{
+            { "image/jpeg", "jpg" },
+            { "image/png", "png" },
+            { "image/gif", "gif" },
+            { "image/webp", "webp" },
+            { "image/bmp", "bmp" },
+        };
+        const auto it = mimeToExtension.find( mime );
+        return it == mimeToExtension.end() ? std::nullopt : std::optional<qwr::u8string>{ it->second };
     }();
 
-    const auto imagePath = GetTempImageFilePathTemplate() + fileExtOpt.value_or( "jpg" );
+    const auto imagePath = CreateTempImageFilePath( fileExtOpt.value_or( "jpg" ) );
     try
     {
         service_ptr_t<file> file_ptr;
@@ -188,12 +198,24 @@ std::optional<qwr::u8string> UploadArt( const metadb_handle_ptr& handle, const q
 
         return SaveArtToFile( artData.pArtData, aborter );
     }();
+    const bool isTemporaryArt = !artData.pathOpt.has_value();
+    qwr::final_action removeTemporaryArt( [&] {
+        if ( isTemporaryArt )
+        {
+            std::error_code error;
+            fs::remove( fs::u8path( artPath ), error );
+            if ( error )
+            {
+                LogWarning( fmt::format( "Failed to remove temporary artwork: {}", error.message() ) );
+            }
+        }
+    } );
 
     aborter.check();
 
     if ( config::advanced::logUploaderCmds )
     {
-        LogDebug( "Upload command: `{} {}`", uploadCommand, artPath );
+        LogDebug( "Running configured artwork uploader (local artwork path redacted)" );
     }
     const auto artUrl = [&] {
         SubprocessExecutor uploader{ uploadCommand };
@@ -219,7 +241,7 @@ std::optional<qwr::u8string> UploadArt( const metadb_handle_ptr& handle, const q
     }();
     if ( config::advanced::logUploaderOutput )
     {
-        LogDebug( "Uploaded url: `{}`", artUrl );
+        LogDebug( "Artwork uploader returned a URL" );
     }
 
     return artUrl;

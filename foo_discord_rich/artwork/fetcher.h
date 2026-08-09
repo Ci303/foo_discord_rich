@@ -46,13 +46,25 @@ public:
     static std::filesystem::path GetCacheFilePath();
 
 private:
+    struct FetchOutcome
+    {
+        std::optional<qwr::u8string> artUrl;
+        bool cacheable = false;
+    };
+
+    struct CacheEntry
+    {
+        std::optional<qwr::u8string> artUrl;
+        int64_t fetchedAt = 0;
+    };
+
     void StartThread();
     void StopThread();
 
     void ThreadMain( std::stop_token token );
 
-    std::optional<qwr::u8string> ProcessFetchRequest( const MusicBrainzFetchRequest& request );
-    std::optional<qwr::u8string> ProcessFetchRequest( const UploadRequest& request );
+    FetchOutcome ProcessFetchRequest( const MusicBrainzFetchRequest& request );
+    FetchOutcome ProcessFetchRequest( const UploadRequest& request );
 
 private:
     ArtworkFetcher() = default;
@@ -63,7 +75,7 @@ private:
     std::unique_ptr<std::jthread> pThread_;
 
     std::optional<FetchRequest> currentRequestOpt_;
-    std::unordered_map<qwr::u8string, std::optional<qwr::u8string>> artPinIdToArtUrl_;
+    std::unordered_map<qwr::u8string, CacheEntry> artPinIdToArtUrl_;
 };
 
 } // namespace drp

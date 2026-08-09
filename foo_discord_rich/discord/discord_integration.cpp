@@ -22,9 +22,6 @@ void DiscordAdapter::Initialize()
         config::middleTextQuery = "";
         config::bottomTextQuery_v1_deprecated = config::bottomTextQuery_v1_deprecated.GetDefaultValue();
     }
-    // currently not working with `Listening to` style
-    config::timeSettings = config::TimeSetting::Disabled;
-
     appToken_ = config::discordAppToken;
     if ( appToken_.empty() )
     {
@@ -41,10 +38,12 @@ void DiscordAdapter::Initialize()
     handlers.errored = OnErrored;
 
     Discord_Initialize( appToken_.c_str(), &handlers, 1, nullptr );
-    Discord_RunCallbacks();
-
     isInitialized_ = true;
+    isConnected_ = false;
     hasPresence_ = true; ///< Discord may use default app handler, which we need to override
+    ++callbackGeneration_;
+    Discord_RunCallbacks();
+    ScheduleCallbackPump();
 
     auto pm = GetPresenceModifier();
     pm.UpdateImage();
@@ -62,7 +61,9 @@ void DiscordAdapter::Finalize()
     Discord_ClearPresence();
     Discord_Shutdown();
     hasPresence_ = false;
+    isConnected_ = false;
     isInitialized_ = false;
+    ++callbackGeneration_;
 }
 
 void DiscordAdapter::OnSettingsChanged()
@@ -122,6 +123,25 @@ void DiscordAdapter::ClearPresence()
     Discord_RunCallbacks();
 }
 
+void DiscordAdapter::ScheduleCallbackPump()
+{
+    const auto generation = callbackGeneration_;
+    fb2k::callLater( 5.0, [generation] {
+        DiscordAdapter::GetInstance().PumpCallbacks( generation );
+    } );
+}
+
+void DiscordAdapter::PumpCallbacks( uint64_t generation )
+{
+    if ( !isInitialized_ || generation != callbackGeneration_ )
+    {
+        return;
+    }
+
+    Discord_RunCallbacks();
+    ScheduleCallbackPump();
+}
+
 PresenceModifier DiscordAdapter::GetPresenceModifier()
 {
     return PresenceModifier( *this, presenceData_ );
@@ -129,11 +149,20 @@ PresenceModifier DiscordAdapter::GetPresenceModifier()
 
 void DiscordAdapter::OnReady( const DiscordUser* request )
 {
+    GetInstance().isConnected_ = true;
     FB2K_console_formatter() << DRP_NAME_WITH_VERSION << ": connected to " << ( request && request->username ? request->username : "<null>" );
+    fb2k::inMainThread( [] {
+        auto& adapter = GetInstance();
+        if ( adapter.isInitialized_ && config::isEnabled && playback_control::get()->is_playing() )
+        {
+            adapter.SendPresence();
+        }
+    } );
 }
 
 void DiscordAdapter::OnDisconnected( int errorCode, const char* message )
 {
+    GetInstance().isConnected_ = false;
     FB2K_console_formatter() << DRP_NAME_WITH_VERSION << ": disconnected with code " << errorCode;
     if ( message )
     {
@@ -143,6 +172,7 @@ void DiscordAdapter::OnDisconnected( int errorCode, const char* message )
 
 void DiscordAdapter::OnErrored( int errorCode, const char* message )
 {
+    GetInstance().isConnected_ = false;
     FB2K_console_formatter() << DRP_NAME_WITH_VERSION << ": error " << errorCode;
     if ( message )
     {

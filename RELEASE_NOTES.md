@@ -1,4 +1,8 @@
-# Discord Rich Presence Integration v2.0.3-ci303.2
+# Discord Rich Presence Integration v2.0.3-ci303.5
+
+This release improves Discord reconnection, album-art fetching and caching,
+temporary-file handling, configuration diagnostics, release validation and CI
+permissions. It also removes the non-functional duration controls.
 
 This is a maintained fork release of Discord Rich Presence Integration for
 foobar2000.

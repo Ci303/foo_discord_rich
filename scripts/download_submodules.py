@@ -11,6 +11,17 @@ def run_git(root_dir, *args):
     subprocess.check_call(["git", *args], cwd=root_dir)
 
 
+def configured_submodule_paths(root_dir):
+    result = subprocess.run(
+        ["git", "config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$"],
+        cwd=root_dir,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return [Path(line.split(maxsplit=1)[1]) for line in result.stdout.splitlines() if line.strip()]
+
+
 def download_submodule(root_dir, submodule_name):
     print(f"Downloading {submodule_name}...")
     try:
@@ -31,8 +42,8 @@ def download(reset_submodules=False):
     run_git(root_dir, "submodule", "sync")
     if reset_submodules:
         run_git(root_dir, "submodule", "foreach", "git", "reset", "--hard")
-    for subdir in [f for f in (root_dir/"submodules").iterdir() if f.is_dir()]:
-        download_submodule(root_dir, subdir.name)
+    for submodule_path in configured_submodule_paths(root_dir):
+        download_submodule(root_dir, submodule_path.name)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Download project submodules")

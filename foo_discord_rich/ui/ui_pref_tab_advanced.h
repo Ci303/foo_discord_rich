@@ -45,6 +45,7 @@ public:
         COMMAND_HANDLER_EX( IDC_BUTTON_SAVE_CACHE, BN_CLICKED, OnSaveCacheClick )
         COMMAND_HANDLER_EX( IDC_BUTTON_OPEN_CACHE_FOLDER, BN_CLICKED, OnOpenCacheFolderClick )
         COMMAND_HANDLER_EX( IDC_BUTTON_CLEAR_CACHE, BN_CLICKED, OnClearCacheClick )
+        COMMAND_HANDLER_EX( IDC_BUTTON_TEST_UPLOADER, BN_CLICKED, OnTestUploaderClick )
     END_MSG_MAP()
 
 public:
@@ -68,6 +69,7 @@ private:
     void OnSaveCacheClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnOpenCacheFolderClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnClearCacheClick( UINT uNotifyCode, int nID, CWindow wndCtl );
+    void OnTestUploaderClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnChanged();
     void DoFullDdxToUi();
 

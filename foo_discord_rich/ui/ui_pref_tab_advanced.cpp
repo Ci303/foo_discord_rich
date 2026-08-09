@@ -3,9 +3,11 @@
 #include "ui_pref_tab_advanced.h"
 
 #include <artwork/fetcher.h>
+#include <artwork/uploader.h>
 #include <discord/discord_integration.h>
 #include <fb2k/config.h>
 #include <ui/ui_pref_tab_manager.h>
+#include <utils/validation.h>
 
 #include <qwr/fb2k_config_ui_option.h>
 
@@ -202,6 +204,59 @@ void PreferenceTabAdvanced::OnClearCacheClick( UINT uNotifyCode, int nID, CWindo
 {
     ArtworkFetcher::Get().ClearCache();
     popup_message::g_show( "Album art cache was cleared.", "Art cache" );
+}
+
+void PreferenceTabAdvanced::OnTestUploaderClick( UINT uNotifyCode, int nID, CWindow wndCtl )
+{
+    const auto& command = artUploadCmd_.GetCurrentValue();
+    if ( command.empty() )
+    {
+        popup_message::g_show( "Enter an upload command first.", "Artwork uploader test" );
+        return;
+    }
+
+    metadb_handle_ptr handle;
+    if ( !playback_control::get()->get_now_playing( handle ) )
+    {
+        popup_message::g_show( "Start playing a track before testing the uploader.", "Artwork uploader test" );
+        return;
+    }
+
+    auto message = std::make_shared<qwr::u8string>();
+    const auto callback = threaded_process_callback_lambda::create(
+        {},
+        [handle, command, message]( threaded_process_status&, abort_callback& ) {
+            try
+            {
+                const auto result = UploadArt( handle, command );
+                if ( !result )
+                {
+                    *message = "No front-cover artwork was available for the current track.";
+                }
+                else if ( !validation::IsSecureImageUrl( *result ) )
+                {
+                    *message = "Uploader output was not a valid HTTPS image URL.";
+                }
+                else
+                {
+                    *message = fmt::format( "Uploader succeeded.\n\n{}", *result );
+                }
+            }
+            catch ( const std::exception& e )
+            {
+                *message = fmt::format( "Uploader failed.\n\n{}", e.what() );
+            }
+        },
+        [message]( fb2k::hwnd_t, bool wasAborted ) {
+            popup_message::g_show(
+                wasAborted ? "Uploader test was cancelled." : message->c_str(),
+                "Artwork uploader test" );
+        } );
+    threaded_process::g_run_modeless(
+        callback,
+        threaded_process::flag_show_delayed,
+        m_hWnd,
+        "Testing artwork uploader" );
 }
 
 void PreferenceTabAdvanced::OnChanged()

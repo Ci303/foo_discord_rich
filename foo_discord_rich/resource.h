@@ -40,6 +40,8 @@
 #define IDC_EDIT_UPLOAD_ART_PIN_QUERY   1100
 #define IDC_LINK_ART_UPLOADER_HELP      1101
 #define IDC_BUTTON_CLEAR_CACHE          1102
+#define IDC_BUTTON_PREVIEW_PRESENCE     1103
+#define IDC_BUTTON_TEST_UPLOADER        1104
 
 // Next default values for new objects
 //
@@ -47,7 +49,7 @@
 #    ifndef APSTUDIO_READONLY_SYMBOLS
 #        define _APS_NEXT_RESOURCE_VALUE 123
 #        define _APS_NEXT_COMMAND_VALUE  40012
-#        define _APS_NEXT_CONTROL_VALUE  1103
+#        define _APS_NEXT_CONTROL_VALUE  1105
 #        define _APS_NEXT_SYMED_VALUE    101
 #    endif
 #endif

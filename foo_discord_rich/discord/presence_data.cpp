@@ -5,6 +5,7 @@
 #include <artwork/fetcher.h>
 #include <discord/discord_integration.h>
 #include <fb2k/config.h>
+#include <utils/validation.h>
 
 #include <qwr/algorithm.h>
 
@@ -170,18 +171,7 @@ int64_t CurrentUnixTime()
 
 void ApplyDiscordTextLimit( qwr::u8string& str )
 {
-    auto wideText = qwr::unicode::ToWide( str );
-    if ( wideText.size() == 1 )
-    {
-        wideText += ' ';
-    }
-    else if ( wideText.size() > 127 )
-    {
-        wideText.resize( 124 );
-        wideText += L"...";
-    }
-
-    str = qwr::unicode::ToU8( wideText );
+    str = qwr::unicode::ToU8( drp::validation::TruncateDiscordText( qwr::unicode::ToWide( str ) ) );
 }
 
 } // namespace

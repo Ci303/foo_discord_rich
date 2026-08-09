@@ -10,6 +10,23 @@
 namespace drp::ui
 {
 
+namespace
+{
+qwr::u8string EvaluatePreviewLine( const qwr::u8string& query )
+{
+    titleformat_object::ptr format;
+    titleformat_compiler::get()->compile_safe( format, query.c_str() );
+    if ( format.is_empty() )
+    {
+        return "<invalid title format>";
+    }
+    pfc::string8_fast result;
+    metadb_handle_ptr ignored;
+    playback_control::get()->playback_format_title_ex( ignored, nullptr, result, format, nullptr, playback_control::display_level_all );
+    return result.is_empty() ? "<empty>" : result.c_str();
+}
+} // namespace
+
 using namespace config;
 
 PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
@@ -21,7 +38,6 @@ PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
     , enableAlbumArtFetch_( config::enableAlbumArtFetch )
     , largeImageSettings_( config::largeImageSettings, { { ImageSetting::Light, IDC_RADIO_IMG_LIGHT }, { ImageSetting::Dark, IDC_RADIO_IMG_DARK }, { ImageSetting::Disabled, IDC_RADIO_IMG_DISABLED } } )
     , smallImageSettings_( config::smallImageSettings, { { ImageSetting::Light, IDC_RADIO_PLAYBACK_IMG_LIGHT }, { ImageSetting::Dark, IDC_RADIO_PLAYBACK_IMG_DARK }, { ImageSetting::Disabled, IDC_RADIO_PLAYBACK_IMG_DISABLED } } )
-    , timeSettings_( config::timeSettings, { { TimeSetting::Elapsed, IDC_RADIO_TIME_ELAPSED }, { TimeSetting::Remaining, IDC_RADIO_TIME_REMAINING }, { TimeSetting::Disabled, IDC_RADIO_TIME_DISABLED } } )
     , disableWhenPaused_( config::disableWhenPaused )
     , swapSmallImages_( config::swapSmallImages )
     , ddxOptions_( {
@@ -32,7 +48,6 @@ PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( enableAlbumArtFetch_, IDC_CHECK_FETCH_ALBUM_ART ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>( largeImageSettings_, std::initializer_list<int>{ IDC_RADIO_IMG_LIGHT, IDC_RADIO_IMG_DARK, IDC_RADIO_IMG_DISABLED } ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>( smallImageSettings_, std::initializer_list<int>{ IDC_RADIO_PLAYBACK_IMG_LIGHT, IDC_RADIO_PLAYBACK_IMG_DARK, IDC_RADIO_PLAYBACK_IMG_DISABLED } ),
-          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>( timeSettings_, std::initializer_list<int>{ IDC_RADIO_TIME_ELAPSED, IDC_RADIO_TIME_REMAINING, IDC_RADIO_TIME_DISABLED } ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( disableWhenPaused_, IDC_CHECK_DISABLE_WHEN_PAUSED ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( swapSmallImages_, IDC_CHECK_SWAP_STATUS ),
       } )
@@ -111,12 +126,6 @@ BOOL PreferenceTabMain::OnInitDialog( HWND hwndFocus, LPARAM lParam )
     }
     DoFullDdxToUi();
 
-    // Disable duration options, since they are currently not implemented by Discord API
-    for ( auto id: { IDC_RADIO_TIME_ELAPSED, IDC_RADIO_TIME_REMAINING, IDC_RADIO_TIME_DISABLED } )
-    {
-        CButton( GetDlgItem( id ) ).EnableWindow( false );
-    }
-
     CButton( GetDlgItem( IDC_CHECK_FETCH_ALBUM_ART ) ).EnableWindow( !isAlbumArtFetchOverriden_ );
 
     helpUrl_.SetHyperLinkExtendedStyle( HLINK_UNDERLINED | HLINK_COMMANDBUTTON );
@@ -143,6 +152,23 @@ void PreferenceTabMain::OnDdxUiChange( UINT uNotifyCode, int nID, CWindow wndCtl
 void PreferenceTabMain::OnHelpUrlClick( UINT uNotifyCode, int nID, CWindow wndCtl )
 {
     standard_commands::main_titleformat_help();
+}
+
+void PreferenceTabMain::OnPreviewPresenceClick( UINT uNotifyCode, int nID, CWindow wndCtl )
+{
+    metadb_handle_ptr handle;
+    if ( !playback_control::get()->get_now_playing( handle ) )
+    {
+        popup_message::g_show( "Start playing a track before previewing Rich Presence.", "Rich Presence preview" );
+        return;
+    }
+
+    const auto preview = fmt::format(
+        "Top: {}\nMiddle: {}\nBottom: {}",
+        EvaluatePreviewLine( topTextQuery_.GetCurrentValue() ),
+        EvaluatePreviewLine( middleTextQuery_.GetCurrentValue() ),
+        EvaluatePreviewLine( bottomTextQuery_.GetCurrentValue() ) );
+    popup_message::g_show( preview.c_str(), "Rich Presence preview" );
 }
 
 void PreferenceTabMain::OnChanged()

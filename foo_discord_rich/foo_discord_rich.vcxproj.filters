@@ -108,6 +108,9 @@
     <ClInclude Include="utils\subprocess_executor.h">
       <Filter>utils</Filter>
     </ClInclude>
+    <ClInclude Include="utils\validation.h">
+      <Filter>utils</Filter>
+    </ClInclude>
     <ClInclude Include="artwork\musicbrainz_fetcher.h">
       <Filter>artwork</Filter>
     </ClInclude>
