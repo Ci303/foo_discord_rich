@@ -52,11 +52,13 @@ jobs:
           }
 
       - name: Run focused tests
-        shell: pwsh
+        shell: cmd
         run: |
           py -m unittest discover -s tests -p "test_*.py"
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`) do set "VSINSTALL=%%i"
+          call "%VSINSTALL%\Common7\Tools\VsDevCmd.bat" -no_logo -arch=x64 -host_arch=x64
           cl /nologo /std:c++20 /EHsc /W4 /WX tests\validation_tests.cpp /I foo_discord_rich /Fe:_result\validation_tests.exe
-          & _result\validation_tests.exe
+          _result\validation_tests.exe
 
       - name: Restore NuGet packages
         run: nuget restore workspaces\foo_discord_rich.sln
