@@ -182,6 +182,23 @@ The uploader overrides MusicBrainz. If `Upload and display art` is enabled on
 the Advanced tab, MusicBrainz fetching is disabled even if the MusicBrainz
 checkbox is enabled on the Main tab.
 
+The Main tab also provides an **Artwork behaviour** selector:
+
+- **Prefer artwork; use large-image fallback** requests artwork first and
+  displays the configured large image while artwork is being fetched or when no
+  match exists. This is the default and preserves previous behaviour.
+- **Use configured large image only** skips artwork requests
+  and uses the configured large image. If that image is disabled, no large
+  image is shown.
+- **Album artwork only; no fallback image** requests artwork but leaves the
+  large image empty while fetching or when no match exists.
+
+The artwork status line reports whether the applied configuration is idle,
+fetching, resolved, using a cached no-match result, or encountered a
+fetch/uploader failure. Unsaved artwork changes are labelled as pending rather
+than being mixed with live status. Cached status is provider-neutral, and URLs
+and uploader output are not shown.
+
 For automatic artwork:
 
 1. Disable `Upload and display art` on the Advanced tab.
@@ -191,13 +208,20 @@ For automatic artwork:
    - `MUSICBRAINZ_ALBUMID`
    - `MUSICBRAINZ ALBUM ID`
 
-Artwork is cached by artist/album or upload pin so repeat plays do not need to
-fetch the same art again. Successful results are refreshed periodically, while
-"not found" results expire sooner so temporary metadata and service problems do
-not require manual cache clearing.
+Artwork is cached separately for MusicBrainz and the uploader so one provider's
+result cannot suppress the other. A valid MusicBrainz album ID identifies its
+release directly; otherwise the artist and album identify the lookup. Uploader
+results use the configured upload pin. Successful results are refreshed
+periodically, while "not found" results expire sooner so temporary metadata and
+service problems do not require manual cache clearing. Cache formats older than
+version 4 are deliberately ignored because their provider and release identity
+is ambiguous; the component rebuilds them as tracks are played.
 
-Use `Advanced > Art cache > Clear cache` if a bad lookup is cached or if you
-want the component to retry artwork for albums that previously failed.
+Use **Advanced > Art cache > Load** to reload the current cache file, or use
+**Clear cache** if a bad lookup is cached. Load reports when no file exists.
+After a successful load or clear, the component immediately re-evaluates the
+current track where artwork is enabled; file errors are reported instead of
+being shown as successful operations.
 
 Use **Test** beside the upload command to run the configured uploader against
 the current track. The command may take up to ten seconds and the result is
@@ -231,10 +255,56 @@ The component can show small playback status images:
 If `Disable Rich Presence when paused` is enabled, Discord presence is cleared
 while playback is paused instead of showing the paused state.
 
+## Discord Application and Assets
+
+This fork defaults to the maintained Discord application `Foobar2000`, with
+application ID `1536157545863847938`. On the first startup after upgrading,
+the component replaces the legacy default ID (`507982587416018945`) and records
+that the migration has run. Any other custom application ID is preserved, and
+the legacy ID can still be selected deliberately afterwards while remaining on
+this or a newer release. Downgrading can discard the migration marker, so a
+later re-upgrade may migrate the legacy ID again.
+
+The six configured Rich Presence asset keys are:
+
+- `foobar2000`
+- `foobar2000-dark`
+- `playing`
+- `playing-dark`
+- `paused`
+- `paused-dark`
+
+The key mapping, included playback-state PNGs, and Developer Portal metadata
+guidance are recorded in the [Discord asset manifest](../images/README.md).
+Portal artwork is not read locally or bundled into the `.fb2k-component`;
+Discord serves uploaded assets by key.
+
 ## Troubleshooting
+
+### Discord shows another application instead of foobar2000
+
+Discord's automatic recognition and this component's Rich Presence are separate
+activities. When both are active, Discord may show a recognised game or
+application instead of the foobar2000 activity, particularly in the compact
+profile card. This component cannot inspect, reorder, or suppress other Discord
+activities.
+
+To prefer foobar2000 over a conflicting recognised application:
+
+1. Open `Discord > User Settings > Registered Games`.
+2. Find the conflicting application and turn off its eye icon.
+3. Under `Activity Sharing`, keep `Share my activity` enabled so this
+   component's Rich Presence can still be displayed.
+
+The artwork behaviour setting changes only the large image on the foobar2000
+activity card. It cannot replace another application's icon or control which
+activity Discord chooses to display.
 
 ### Album art does not appear
 
+- Check the artwork status shown on the Main tab.
+- Select `Prefer artwork` or `Album artwork only`; `Use configured large image
+  only` intentionally skips artwork requests.
 - Confirm uploader mode is disabled unless you configured an upload command.
 - Confirm the track has artist and album tags.
 - Try a release with a MusicBrainz album ID tag.

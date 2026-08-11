@@ -33,6 +33,9 @@
     <ClCompile Include="ui\ui_pref_tab_advanced.cpp">
       <Filter>ui</Filter>
     </ClCompile>
+    <ClCompile Include="ui\ui_pref_tab_troubleshooting.cpp">
+      <Filter>ui</Filter>
+    </ClCompile>
     <ClCompile Include="discord\discord_integration.cpp">
       <Filter>discord</Filter>
     </ClCompile>
@@ -86,6 +89,9 @@
     <ClInclude Include="ui\ui_pref_tab_advanced.h">
       <Filter>ui</Filter>
     </ClInclude>
+    <ClInclude Include="ui\ui_pref_tab_troubleshooting.h">
+      <Filter>ui</Filter>
+    </ClInclude>
     <ClInclude Include="discord\discord_integration.h">
       <Filter>discord</Filter>
     </ClInclude>
@@ -109,6 +115,15 @@
       <Filter>utils</Filter>
     </ClInclude>
     <ClInclude Include="utils\validation.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\artwork_policy.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\artwork_cache_key.h">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\discord_application_id_migration.h">
       <Filter>utils</Filter>
     </ClInclude>
     <ClInclude Include="artwork\musicbrainz_fetcher.h">

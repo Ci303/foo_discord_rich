@@ -2,6 +2,7 @@
 
 #### Table of Contents
 - [Unreleased](#unreleased)
+- [2.0.3-ci303.6](#203-ci3036---2026-08-11)
 - [2.0.3-ci303.5](#203-ci3035---2026-08-08)
 - [2.0.3-ci303.2](#203-ci3032---2026-05-04)
 - [2.0.2](#202---2024-08-11)
@@ -14,6 +15,30 @@
 ___
 
 ## [Unreleased][]
+
+## [2.0.3-ci303.6][] - 2026-08-11
+
+### Added
+- Added explicit album-artwork display policies: prefer artwork with a configured large-image fallback, always use that large image, or artwork only.
+- Added live artwork status in Preferences for fetching, resolved, cached no-match, and failure states.
+- Added a Troubleshooting tab explaining Discord recognised-application conflicts and the supported per-application fix.
+- Added a Discord asset-key manifest and aligned the included playback-state PNG filenames with their Portal keys.
+
+### Changed
+- Made the existing artwork-first behaviour explicit while preserving it as the default.
+- Changed the default Discord application to the maintained `Foobar2000` application; a persisted one-time migration replaces only the legacy default ID and preserves existing custom IDs.
+- Renamed the Advanced preference label from application token to application ID and aligned playback asset filenames with their Portal keys.
+- Introduced a version 4 artwork cache with provider-qualified keys and release-MBID identity; ambiguous older cache entries are rebuilt automatically.
+- Made MusicBrainz pacing, retry waits, and active transfers respond promptly to component shutdown.
+
+### Fixed
+- Loaded the artwork cache before sending the initial Discord presence so cached album art is applied immediately after startup.
+- Fixed MusicBrainz and uploader cache results suppressing or being attributed to the other provider.
+- Fixed cache clearing or reloading racing with in-flight artwork work and allowing stale results or status to return.
+- Fixed incomplete metadata, pending setting changes, and configured-large-image mode allowing stale artwork results to replace the current image or misreport live status.
+- Fixed cache load/clear actions reporting success after failure and made successful operations re-evaluate the active track where applicable.
+- Fixed Discord reconnect restoring a presence that should remain hidden while playback is paused.
+- Kept Discord Rich Presence available with its configured fallback if the artwork worker cannot start or stops unexpectedly.
 
 ## [2.0.3-ci303.5][] - 2026-08-08
 
@@ -133,7 +158,8 @@ ___
 ## [1.0.0][] - 2018-11-06
 Initial release.
 
-[unreleased]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.5...HEAD
+[unreleased]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.6...HEAD
+[2.0.3-ci303.6]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.5...v2.0.3-ci303.6
 [2.0.3-ci303.5]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.2...v2.0.3-ci303.5
 [2.0.3-ci303.2]: https://github.com/Ci303/foo_discord_rich/releases/tag/v2.0.3-ci303.2
 [2.0.2]: https://github.com/TheQwertiest/foo_discord_rich/compare/v2.0.1...v2.0.2

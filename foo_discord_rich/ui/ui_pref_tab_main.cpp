@@ -2,6 +2,7 @@
 
 #include "ui_pref_tab_main.h"
 
+#include <artwork/fetcher.h>
 #include <discord/discord_integration.h>
 #include <ui/ui_pref_tab_manager.h>
 
@@ -12,6 +13,8 @@ namespace drp::ui
 
 namespace
 {
+constexpr UINT_PTR kArtworkStatusTimerId = 1;
+
 qwr::u8string EvaluatePreviewLine( const qwr::u8string& query )
 {
     titleformat_object::ptr format;
@@ -36,6 +39,8 @@ PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
     , middleTextQuery_( config::middleTextQuery )
     , bottomTextQuery_( config::bottomTextQuery )
     , enableAlbumArtFetch_( config::enableAlbumArtFetch )
+    , artworkDisplayPolicy_( config::artworkDisplayPolicy,
+          { { artwork::DisplayPolicy::PreferArtwork, 0 }, { artwork::DisplayPolicy::ApplicationIcon, 1 }, { artwork::DisplayPolicy::ArtworkOnly, 2 } } )
     , largeImageSettings_( config::largeImageSettings, { { ImageSetting::Light, IDC_RADIO_IMG_LIGHT }, { ImageSetting::Dark, IDC_RADIO_IMG_DARK }, { ImageSetting::Disabled, IDC_RADIO_IMG_DISABLED } } )
     , smallImageSettings_( config::smallImageSettings, { { ImageSetting::Light, IDC_RADIO_PLAYBACK_IMG_LIGHT }, { ImageSetting::Dark, IDC_RADIO_PLAYBACK_IMG_DARK }, { ImageSetting::Disabled, IDC_RADIO_PLAYBACK_IMG_DISABLED } } )
     , disableWhenPaused_( config::disableWhenPaused )
@@ -46,6 +51,7 @@ PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( middleTextQuery_, IDC_EDIT_MIDDLE_TEXT ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( bottomTextQuery_, IDC_EDIT_BOTTOM_TEXT ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( enableAlbumArtFetch_, IDC_CHECK_FETCH_ALBUM_ART ),
+          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_ComboBox>( artworkDisplayPolicy_, IDC_COMBO_ARTWORK_POLICY ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>( largeImageSettings_, std::initializer_list<int>{ IDC_RADIO_IMG_LIGHT, IDC_RADIO_IMG_DARK, IDC_RADIO_IMG_DISABLED } ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>( smallImageSettings_, std::initializer_list<int>{ IDC_RADIO_PLAYBACK_IMG_LIGHT, IDC_RADIO_PLAYBACK_IMG_DARK, IDC_RADIO_PLAYBACK_IMG_DISABLED } ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( disableWhenPaused_, IDC_CHECK_DISABLE_WHEN_PAUSED ),
@@ -120,6 +126,11 @@ BOOL PreferenceTabMain::OnInitDialog( HWND hwndFocus, LPARAM lParam )
 {
     darkModeHooks_.AddDialogWithControls( m_hWnd );
 
+    CComboBox artworkPolicy{ GetDlgItem( IDC_COMBO_ARTWORK_POLICY ) };
+    artworkPolicy.AddString( L"Prefer artwork; use large-image fallback" );
+    artworkPolicy.AddString( L"Use configured large image only" );
+    artworkPolicy.AddString( L"Album artwork only; no fallback image" );
+
     for ( auto& ddxOpt: ddxOptions_ )
     {
         ddxOpt->Ddx().SetHwnd( m_hWnd );
@@ -127,6 +138,8 @@ BOOL PreferenceTabMain::OnInitDialog( HWND hwndFocus, LPARAM lParam )
     DoFullDdxToUi();
 
     CButton( GetDlgItem( IDC_CHECK_FETCH_ALBUM_ART ) ).EnableWindow( !isAlbumArtFetchOverriden_ );
+    UpdateArtworkStatus();
+    SetTimer( kArtworkStatusTimerId, 1000 );
 
     helpUrl_.SetHyperLinkExtendedStyle( HLINK_UNDERLINED | HLINK_COMMANDBUTTON );
     helpUrl_.SetToolTipText( L"Title formatting help" );
@@ -147,6 +160,7 @@ void PreferenceTabMain::OnDdxUiChange( UINT uNotifyCode, int nID, CWindow wndCtl
     }
 
     OnChanged();
+    UpdateArtworkStatus();
 }
 
 void PreferenceTabMain::OnHelpUrlClick( UINT uNotifyCode, int nID, CWindow wndCtl )
@@ -169,6 +183,46 @@ void PreferenceTabMain::OnPreviewPresenceClick( UINT uNotifyCode, int nID, CWind
         EvaluatePreviewLine( middleTextQuery_.GetCurrentValue() ),
         EvaluatePreviewLine( bottomTextQuery_.GetCurrentValue() ) );
     popup_message::g_show( preview.c_str(), "Rich Presence preview" );
+}
+
+void PreferenceTabMain::OnTimer( UINT_PTR timerId )
+{
+    if ( timerId == kArtworkStatusTimerId )
+    {
+        UpdateArtworkStatus();
+    }
+}
+
+void PreferenceTabMain::OnDestroy()
+{
+    KillTimer( kArtworkStatusTimerId );
+}
+
+void PreferenceTabMain::UpdateArtworkStatus()
+{
+    qwr::u8string message;
+    const bool hasPendingArtworkSettings = enableAlbumArtFetch_.HasChanged()
+                                           || artworkDisplayPolicy_.HasChanged()
+                                           || pParent_->HasPendingArtworkSettings();
+    const auto appliedPolicy = artwork::NormaliseDisplayPolicy( static_cast<artwork::DisplayPolicy>( config::artworkDisplayPolicy ) );
+    if ( hasPendingArtworkSettings )
+    {
+        message = "Artwork settings have changed; apply them to update the live status.";
+    }
+    else if ( appliedPolicy == artwork::DisplayPolicy::ApplicationIcon )
+    {
+        message = "Artwork disabled by the selected behaviour.";
+    }
+    else if ( !static_cast<bool>( config::enableArtUpload ) && !static_cast<bool>( config::enableAlbumArtFetch ) )
+    {
+        message = "No artwork source is enabled.";
+    }
+    else
+    {
+        message = ArtworkFetcher::Get().GetStatus().message;
+    }
+
+    SetDlgItemText( IDC_STATIC_ARTWORK_STATUS, qwr::unicode::ToWide( fmt::format( "Status: {}", message ) ).c_str() );
 }
 
 void PreferenceTabMain::OnChanged()

@@ -2,6 +2,8 @@
 
 #include "musicbrainz_fetcher.h"
 
+#include <utils/artwork_cache_key.h>
+
 #include <cpr/cpr.h>
 #include <qwr/abort_callback.h>
 
@@ -20,7 +22,7 @@ const cpr::Header kJsonRequestHeaders{
     { "User-Agent", DRP_UNDERSCORE_NAME "/" DRP_VERSION " (" DRP_HOMEPAGE ")" },
 };
 
-void ThrottleRequest()
+void ThrottleRequest( abort_callback& aborter )
 {
     static std::mutex mutex;
     static std::chrono::steady_clock::time_point lastRequest;
@@ -29,7 +31,7 @@ void ThrottleRequest()
     const auto nextRequest = lastRequest + kMinimumRequestInterval;
     if ( nextRequest > now )
     {
-        std::this_thread::sleep_until( nextRequest );
+        aborter.sleep( std::chrono::duration<double>( nextRequest - now ).count() );
     }
     lastRequest = std::chrono::steady_clock::now();
 }
@@ -41,30 +43,23 @@ cpr::Response GetWithRetry( abort_callback& aborter, Args... args )
     for ( int attempt = 1; attempt <= kMaxTransientAttempts; ++attempt )
     {
         aborter.check();
-        ThrottleRequest();
-        response = cpr::Get( args... );
+        ThrottleRequest( aborter );
+        const cpr::ProgressCallback abortProgress{
+            [&aborter]( cpr::cpr_pf_arg_t, cpr::cpr_pf_arg_t, cpr::cpr_pf_arg_t, cpr::cpr_pf_arg_t, intptr_t ) {
+                return !aborter.is_aborting();
+            } };
+        response = cpr::Get( args..., abortProgress );
+        aborter.check();
         if ( response.status_code != 429 && response.status_code < 500 )
         {
             break;
         }
         if ( attempt < kMaxTransientAttempts )
         {
-            std::this_thread::sleep_for( std::chrono::seconds{ attempt } );
+            aborter.sleep( static_cast<double>( attempt ) );
         }
     }
     return response;
-}
-
-bool IsValidGuid( const qwr::u8string& str )
-{
-    if ( str.size() != 36 )
-    {
-        return false;
-    }
-
-    GUID guid;
-    HRESULT hr = IIDFromString( qwr::unicode::ToWide( fmt::format( "{{{}}}", str ) ).c_str(), &guid );
-    return SUCCEEDED( hr );
 }
 
 void LogRequest( const cpr::Response& resp )
@@ -195,7 +190,7 @@ std::optional<qwr::u8string> FetchArt( const qwr::u8string& artist, const qwr::u
 
     if ( userReleaseMbidOpt )
     {
-        if ( !IsValidGuid( *userReleaseMbidOpt ) )
+        if ( !artwork::IsCanonicalMbid( *userReleaseMbidOpt ) )
         {
             LogWarning( fmt::format( "Invalid MBID detected: `{}`. Skipping...", *userReleaseMbidOpt ) );
         }

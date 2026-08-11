@@ -89,22 +89,25 @@ BEGIN
     CONTROL         "Light image",IDC_RADIO_PLAYBACK_IMG_LIGHT,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,175,147,56,10
     CONTROL         "Dark image",IDC_RADIO_PLAYBACK_IMG_DARK,"Button",BS_AUTORADIOBUTTON,175,160,64,10
     CONTROL         "Disabled",IDC_RADIO_PLAYBACK_IMG_DISABLED,"Button",BS_AUTORADIOBUTTON,175,173,43,10
-    GROUPBOX        "Miscellaneous",IDC_STATIC,6,191,314,56
+    GROUPBOX        "Album artwork",IDC_STATIC,6,191,314,53
+    LTEXT           "Behaviour:",IDC_STATIC,15,203,38,8
+    COMBOBOX        IDC_COMBO_ARTWORK_POLICY,58,200,255,58,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     CONTROL         "Fetch and display album art from MusicBrainz",IDC_CHECK_FETCH_ALBUM_ART,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,205,159,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,217,159,10
+    LTEXT           "Status: No artwork requested yet.",IDC_STATIC_ARTWORK_STATUS,15,230,298,9,SS_ENDELLIPSIS
     CONTROL         "Disable Rich Presence when paused",IDC_CHECK_DISABLE_WHEN_PAUSED,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,218,128,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,251,128,10
     CONTROL         "Swap `paused` and `playing` images",IDC_CHECK_SWAP_STATUS,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,231,135,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,171,251,142,10
 END
 
 IDD_PREFS_ADVANCED_TAB DIALOGEX 0, 0, 327, 268
 STYLE DS_SETFONT | DS_CONTROL | WS_CHILD | WS_SYSMENU
 FONT 8, "Tahoma", 400, 0, 0x0
 BEGIN
-    LTEXT           "Discord application token:",IDC_STATIC,13,16,87,8
+    LTEXT           "Discord application ID:",IDC_STATIC,13,16,87,8
     EDITTEXT        IDC_EDIT_APP_TOKEN,101,15,203,12,ES_AUTOHSCROLL | WS_GROUP
-    GROUPBOX        "Resource IDs",IDC_STATIC,6,35,314,136
+    GROUPBOX        "Rich Presence asset keys",IDC_STATIC,6,35,314,136
     LTEXT           "Large image (light):",IDC_STATIC,17,56,72,8
     EDITTEXT        IDC_EDIT_LARGE_LIGHT_ID,101,55,203,12,ES_AUTOHSCROLL
     LTEXT           "Large image (dark):",IDC_STATIC,17,75,72,8
@@ -133,6 +136,22 @@ BEGIN
     PUSHBUTTON      "Clear cache",IDC_BUTTON_CLEAR_CACHE,224,241,90,14
 END
 
+IDD_PREFS_TROUBLESHOOTING_TAB DIALOGEX 0, 0, 327, 268
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD | WS_SYSMENU
+FONT 8, "Tahoma", 400, 0, 0x0
+BEGIN
+    GROUPBOX        "Why Discord may show another application",IDC_STATIC,6,8,314,82
+    LTEXT           "Discord treats this Rich Presence and automatically recognised games or applications as separate activities.",IDC_STATIC,15,23,296,20
+    LTEXT           "When both are active, Discord may display the recognised application instead of foobar2000. This component cannot inspect, reorder, or suppress other activities.",IDC_STATIC,15,49,296,32
+    GROUPBOX        "Prefer foobar2000",IDC_STATIC,6,96,314,104
+    LTEXT           "1. Open Discord > User Settings > Registered Games.",IDC_STATIC,15,112,296,10
+    LTEXT           "2. Find the conflicting application and turn its eye icon off.",IDC_STATIC,15,128,296,10
+    LTEXT           "3. Under Activity Sharing, keep `Share my activity` enabled.",IDC_STATIC,15,144,296,18
+    PUSHBUTTON      "Open troubleshooting guide...",IDC_BUTTON_DISCORD_ACTIVITY_HELP,15,175,120,14
+    GROUPBOX        "What artwork controls",IDC_STATIC,6,206,314,55
+    LTEXT           "Album artwork changes only the large image on the foobar2000 activity card. It cannot replace another application's icon or change which activity Discord displays.",IDC_STATIC,15,221,296,30
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -153,6 +172,10 @@ BEGIN
     IDD_PREFS_ADVANCED_TAB, DIALOG
     BEGIN
     END
+
+    IDD_PREFS_TROUBLESHOOTING_TAB, DIALOG
+    BEGIN
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -168,6 +191,11 @@ BEGIN
 END
 
 IDD_PREFS_ADVANCED_TAB AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+IDD_PREFS_TROUBLESHOOTING_TAB AFX_DIALOG_LAYOUT
 BEGIN
     0
 END

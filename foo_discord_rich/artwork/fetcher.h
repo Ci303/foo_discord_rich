@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <cstdint>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -12,6 +13,21 @@ namespace drp
 class ArtworkFetcher
 {
 public:
+    enum class Status
+    {
+        Idle,
+        Fetching,
+        Resolved,
+        NotFound,
+        Failed
+    };
+
+    struct StatusSnapshot
+    {
+        Status status = Status::Idle;
+        qwr::u8string message = "No artwork requested yet.";
+    };
+
     struct MusicBrainzFetchRequest
     {
         qwr::u8string artist;
@@ -39,8 +55,10 @@ public:
     void Finalize();
 
     std::optional<qwr::u8string> GetArtUrl( const FetchRequest& request );
+    StatusSnapshot GetStatus() const;
+    void CancelPendingRequest();
 
-    void LoadCache( bool throwOnError = false );
+    bool LoadCache( bool throwOnError = false );
     void SaveCache();
     void ClearCache();
     static std::filesystem::path GetCacheFilePath();
@@ -50,12 +68,28 @@ private:
     {
         std::optional<qwr::u8string> artUrl;
         bool cacheable = false;
+        qwr::u8string failureMessage;
     };
 
     struct CacheEntry
     {
         std::optional<qwr::u8string> artUrl;
         int64_t fetchedAt = 0;
+    };
+
+    struct PendingRequest
+    {
+        FetchRequest request;
+        qwr::u8string cacheKey;
+        uint64_t requestGeneration = 0;
+
+        bool operator==( const PendingRequest& other ) const = default;
+    };
+
+    struct WorkItem
+    {
+        PendingRequest pending;
+        uint64_t cacheGeneration = 0;
     };
 
     void StartThread();
@@ -65,17 +99,24 @@ private:
 
     FetchOutcome ProcessFetchRequest( const MusicBrainzFetchRequest& request );
     FetchOutcome ProcessFetchRequest( const UploadRequest& request );
+    void SupersedeCurrentRequestLocked();
+    void SetWorkerFailure( qwr::u8string logMessage );
+    void SetStatusLocked( Status status, qwr::u8string message );
 
 private:
     ArtworkFetcher() = default;
 
 private:
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     std::condition_variable cv_;
     std::unique_ptr<std::jthread> pThread_;
 
-    std::optional<FetchRequest> currentRequestOpt_;
-    std::unordered_map<qwr::u8string, CacheEntry> artPinIdToArtUrl_;
+    std::optional<PendingRequest> currentRequestOpt_;
+    std::unordered_map<qwr::u8string, CacheEntry> cacheKeyToEntry_;
+    uint64_t requestGeneration_ = 0;
+    uint64_t cacheGeneration_ = 0;
+    bool isWorkerAvailable_ = false;
+    StatusSnapshot status_;
 };
 
 } // namespace drp

@@ -160,6 +160,7 @@
     <ClCompile Include="ui\ui_pref_tab_advanced.cpp" />
     <ClCompile Include="ui\ui_pref_tab_main.cpp" />
     <ClCompile Include="ui\ui_pref_tab_manager.cpp" />
+    <ClCompile Include="ui\ui_pref_tab_troubleshooting.cpp" />
     <ClCompile Include="utils\logging.cpp" />
     <ClCompile Include="utils\subprocess_executor.cpp" />
   </ItemGroup>
@@ -179,10 +180,14 @@
     <ClInclude Include="ui\ui_pref_tab_advanced.h" />
     <ClInclude Include="ui\ui_pref_tab_main.h" />
     <ClInclude Include="ui\ui_pref_tab_manager.h" />
+    <ClInclude Include="ui\ui_pref_tab_troubleshooting.h" />
     <ClInclude Include="utils\json_std_extenders.h" />
     <ClInclude Include="utils\logging.h" />
     <ClInclude Include="utils\subprocess_executor.h" />
     <ClInclude Include="utils\validation.h" />
+    <ClInclude Include="utils\artwork_policy.h" />
+    <ClInclude Include="utils\artwork_cache_key.h" />
+    <ClInclude Include="utils\discord_application_id_migration.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="discord\presence_data.h" />

@@ -6,6 +6,7 @@
 #include <fb2k/config.h>
 #include <ui/ui_pref_tab_advanced.h>
 #include <ui/ui_pref_tab_main.h>
+#include <ui/ui_pref_tab_troubleshooting.h>
 
 namespace
 {
@@ -56,7 +57,10 @@ PreferenceTabManager::PreferenceTabManager( preferences_page_callback::ptr callb
     : callback_( callback )
 {
     tabs_.emplace_back( std::make_unique<PreferenceTabMain>( this ) );
-    tabs_.emplace_back( std::make_unique<PreferenceTabAdvanced>( this ) );
+    auto advancedTab = std::make_unique<PreferenceTabAdvanced>( this );
+    pAdvancedTab_ = advancedTab.get();
+    tabs_.emplace_back( std::move( advancedTab ) );
+    tabs_.emplace_back( std::make_unique<PreferenceTabTroubleshooting>() );
 }
 
 PreferenceTabManager::~PreferenceTabManager()
@@ -74,6 +78,11 @@ void PreferenceTabManager::RequestUiChange( int nId, bool enable )
     {
         tab->OnUiChangeRequest( nId, enable );
     }
+}
+
+bool PreferenceTabManager::HasPendingArtworkSettings() const
+{
+    return pAdvancedTab_ && pAdvancedTab_->HasPendingArtworkSettings();
 }
 
 HWND PreferenceTabManager::get_wnd()

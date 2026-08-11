@@ -1,6 +1,7 @@
 #pragma once
 
 #include <qwr/fb2k_config.h>
+#include <utils/artwork_policy.h>
 
 namespace drp::config
 {
@@ -24,6 +25,7 @@ extern qwr::fb2k::ConfigUint8Enum<ImageSetting> smallImageSettings;
 extern qwr::fb2k::ConfigUint8Enum<TimeSetting> timeSettings;
 extern qwr::fb2k::ConfigBool enableAlbumArtFetch;
 extern qwr::fb2k::ConfigBool enableArtUpload;
+extern qwr::fb2k::ConfigUint8Enum<artwork::DisplayPolicy> artworkDisplayPolicy;
 extern qwr::fb2k::ConfigString artUploadCmd;
 extern qwr::fb2k::ConfigString artUploadPinQuery;
 
@@ -42,5 +44,8 @@ extern qwr::fb2k::ConfigString pausedImageId_Light;
 
 extern qwr::fb2k::ConfigBool disableWhenPaused;
 extern qwr::fb2k::ConfigBool swapSmallImages;
+
+void MigrateLegacyDiscordApplicationId();
+void SanitiseArtworkDisplayPolicy();
 
 }; // namespace drp::config

@@ -21,8 +21,10 @@ class ComponentInitQuit : public initquit
 public:
     void on_init() override
     {
-        drp::DiscordAdapter::GetInstance().Initialize();
+        drp::config::MigrateLegacyDiscordApplicationId();
+        drp::config::SanitiseArtworkDisplayPolicy();
         drp::ArtworkFetcher::Get().Initialize();
+        drp::DiscordAdapter::GetInstance().Initialize();
     }
 
     void on_quit() override

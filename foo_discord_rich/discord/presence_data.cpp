@@ -6,6 +6,7 @@
 #include <discord/discord_integration.h>
 #include <fb2k/config.h>
 #include <utils/validation.h>
+#include <utils/artwork_policy.h>
 
 #include <qwr/algorithm.h>
 
@@ -288,10 +289,26 @@ void PresenceModifier::UpdateImage()
 {
     auto& pd = presenceData_;
 
-    const auto artUrlOpt = ResolveTrackArtUrl( pd );
-    if ( artUrlOpt )
+    const auto policy = artwork::NormaliseDisplayPolicy( static_cast<artwork::DisplayPolicy>( config::artworkDisplayPolicy ) );
+    const bool hasArtworkSource = config::enableArtUpload || config::enableAlbumArtFetch;
+    const bool shouldResolveArtwork = artwork::ShouldResolveArtwork( policy ) && pd.metadb.is_valid() && hasArtworkSource;
+    if ( shouldResolveArtwork )
     {
-        SetImageKey( pd.largeImageKey, *artUrlOpt, pd.presence.largeImageKey );
+        const auto artUrlOpt = ResolveTrackArtUrl( pd );
+        if ( artUrlOpt )
+        {
+            SetImageKey( pd.largeImageKey, *artUrlOpt, pd.presence.largeImageKey );
+            return;
+        }
+    }
+    else
+    {
+        ArtworkFetcher::Get().CancelPendingRequest();
+    }
+
+    if ( !artwork::ShouldUseFallbackImage( policy ) )
+    {
+        SetImageKey( pd.largeImageKey, qwr::u8string{}, pd.presence.largeImageKey );
         return;
     }
 

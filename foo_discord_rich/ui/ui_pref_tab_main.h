@@ -36,11 +36,14 @@ public:
         COMMAND_HANDLER_EX( IDC_EDIT_MIDDLE_TEXT, EN_CHANGE, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_EDIT_BOTTOM_TEXT, EN_CHANGE, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_CHECK_FETCH_ALBUM_ART, BN_CLICKED, OnDdxUiChange )
+        COMMAND_HANDLER_EX( IDC_COMBO_ARTWORK_POLICY, CBN_SELCHANGE, OnDdxUiChange )
         COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_IMG_LIGHT, IDC_RADIO_IMG_DISABLED, BN_CLICKED, OnDdxUiChange )
         COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_PLAYBACK_IMG_LIGHT, IDC_RADIO_PLAYBACK_IMG_DISABLED, BN_CLICKED, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_BUTTON_PREVIEW_PRESENCE, BN_CLICKED, OnPreviewPresenceClick )
         COMMAND_HANDLER_EX( IDC_CHECK_DISABLE_WHEN_PAUSED, BN_CLICKED, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_CHECK_SWAP_STATUS, BN_CLICKED, OnDdxUiChange )
+        MSG_WM_TIMER( OnTimer )
+        MSG_WM_DESTROY( OnDestroy )
     END_MSG_MAP()
 
 public:
@@ -61,8 +64,11 @@ private:
     void OnDdxUiChange( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnHelpUrlClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnPreviewPresenceClick( UINT uNotifyCode, int nID, CWindow wndCtl );
+    void OnTimer( UINT_PTR timerId );
+    void OnDestroy();
     void OnChanged();
     void DoFullDdxToUi();
+    void UpdateArtworkStatus();
 
 private:
     PreferenceTabManager* pParent_ = nullptr;
@@ -79,6 +85,7 @@ private:
                             middleTextQuery,
                             bottomTextQuery,
                             enableAlbumArtFetch,
+                            artworkDisplayPolicy,
                             largeImageSettings,
                             smallImageSettings,
                             disableWhenPaused,
@@ -88,7 +95,7 @@ private:
 #undef SPTF_DEFINE_OPTIONS
 #undef SPTF_DEFINE_OPTION
 
-    std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 9> ddxOptions_;
+    std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 10> ddxOptions_;
 
     CHyperLink helpUrl_;
 

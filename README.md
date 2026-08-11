@@ -12,6 +12,9 @@ component.
 For setup examples, title-formatting fields, and album art behavior, see the
 [configuration guide](docs/CONFIGURATION.md).
 
+The maintained Discord application's Portal asset mapping is documented in the
+[Discord asset manifest](images/README.md).
+
 ## Installation
 
 Download the latest `.fb2k-component` package from

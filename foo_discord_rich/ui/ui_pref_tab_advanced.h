@@ -61,6 +61,8 @@ public:
     void Apply() override;
     void Reset() override;
 
+    bool HasPendingArtworkSettings() const;
+
 private:
     BOOL OnInitDialog( HWND hwndFocus, LPARAM lParam );
     void OnDdxUiChange( UINT uNotifyCode, int nID, CWindow wndCtl );

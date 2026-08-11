@@ -100,6 +100,11 @@ void PreferenceTabAdvanced::Reset()
     DoFullDdxToUi();
 }
 
+bool PreferenceTabAdvanced::HasPendingArtworkSettings() const
+{
+    return enableArtUpload_.HasChanged() || artUploadCmd_.HasChanged() || artUploadPinQuery_.HasChanged();
+}
+
 BOOL PreferenceTabAdvanced::OnInitDialog( HWND hwndFocus, LPARAM lParam )
 {
     darkModeHooks_.AddDialogWithControls( m_hWnd );
@@ -145,7 +150,15 @@ void PreferenceTabAdvanced::OnLoadCacheClick( UINT uNotifyCode, int nID, CWindow
 {
     try
     {
-        ArtworkFetcher::Get().LoadCache( true );
+        if ( !ArtworkFetcher::Get().LoadCache( true ) )
+        {
+            popup_message::g_show( "No album art cache file was found.", "Loading art cache" );
+            return;
+        }
+
+        auto pm = DiscordAdapter::GetInstance().GetPresenceModifier();
+        pm.UpdateImage();
+        popup_message::g_show( "Album art cache was loaded. The active track was re-evaluated where applicable.", "Loading art cache" );
     }
     catch ( const std::exception& e )
     {
@@ -202,8 +215,20 @@ void PreferenceTabAdvanced::OnOpenCacheFolderClick( UINT uNotifyCode, int nID, C
 
 void PreferenceTabAdvanced::OnClearCacheClick( UINT uNotifyCode, int nID, CWindow wndCtl )
 {
-    ArtworkFetcher::Get().ClearCache();
-    popup_message::g_show( "Album art cache was cleared.", "Art cache" );
+    try
+    {
+        ArtworkFetcher::Get().ClearCache();
+
+        auto pm = DiscordAdapter::GetInstance().GetPresenceModifier();
+        pm.UpdateImage();
+        popup_message::g_show( "Album art cache was cleared. The current track will be looked up again where artwork is enabled.", "Art cache" );
+    }
+    catch ( const std::exception& e )
+    {
+        const auto errorMsg = fmt::format( "Failed to clear album art cache:\n{}", e.what() );
+        LogError( errorMsg );
+        popup_message::g_show( errorMsg.c_str(), "Art cache" );
+    }
 }
 
 void PreferenceTabAdvanced::OnTestUploaderClick( UINT uNotifyCode, int nID, CWindow wndCtl )

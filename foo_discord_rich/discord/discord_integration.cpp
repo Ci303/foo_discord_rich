@@ -153,7 +153,9 @@ void DiscordAdapter::OnReady( const DiscordUser* request )
     FB2K_console_formatter() << DRP_NAME_WITH_VERSION << ": connected to " << ( request && request->username ? request->username : "<null>" );
     fb2k::inMainThread( [] {
         auto& adapter = GetInstance();
-        if ( adapter.isInitialized_ && config::isEnabled && playback_control::get()->is_playing() )
+        const auto playback = playback_control::get();
+        const bool suppressPausedPresence = playback->is_paused() && config::disableWhenPaused;
+        if ( adapter.isInitialized_ && config::isEnabled && playback->is_playing() && !suppressPausedPresence )
         {
             adapter.SendPresence();
         }

@@ -1,12 +1,71 @@
+#include <utils/artwork_cache_key.h>
 #include <utils/validation.h>
+#include <utils/artwork_policy.h>
+#include <utils/discord_application_id_migration.h>
 
 #include <cassert>
 
 int main()
 {
+    using drp::artwork::DisplayPolicy;
+    using drp::artwork::BuildMusicBrainzCacheKey;
+    using drp::artwork::BuildUploaderCacheKey;
+    using drp::artwork::CanCommitCacheResult;
+    using drp::artwork::CanPublishRequestResult;
+    using drp::artwork::IsValidDisplayPolicy;
+    using drp::artwork::IsQualifiedCacheKey;
+    using drp::artwork::NormaliseDisplayPolicy;
+    using drp::artwork::ShouldResolveArtwork;
+    using drp::artwork::ShouldUseFallbackImage;
+    using drp::config::ShouldMigrateLegacyDiscordApplicationId;
     using drp::validation::IsSecureImageUrl;
     using drp::validation::IsCacheEntryFresh;
     using drp::validation::TruncateDiscordText;
+
+    assert( ShouldResolveArtwork( DisplayPolicy::PreferArtwork ) );
+    assert( ShouldUseFallbackImage( DisplayPolicy::PreferArtwork ) );
+    assert( !ShouldResolveArtwork( DisplayPolicy::ApplicationIcon ) );
+    assert( ShouldUseFallbackImage( DisplayPolicy::ApplicationIcon ) );
+    assert( ShouldResolveArtwork( DisplayPolicy::ArtworkOnly ) );
+    assert( !ShouldUseFallbackImage( DisplayPolicy::ArtworkOnly ) );
+    assert( IsValidDisplayPolicy( DisplayPolicy::PreferArtwork ) );
+    assert( IsValidDisplayPolicy( DisplayPolicy::ApplicationIcon ) );
+    assert( IsValidDisplayPolicy( DisplayPolicy::ArtworkOnly ) );
+    assert( !IsValidDisplayPolicy( static_cast<DisplayPolicy>( 255 ) ) );
+    assert( NormaliseDisplayPolicy( static_cast<DisplayPolicy>( 255 ) ) == DisplayPolicy::PreferArtwork );
+
+    assert( ShouldMigrateLegacyDiscordApplicationId( false, "507982587416018945" ) );
+    assert( !ShouldMigrateLegacyDiscordApplicationId( false, "custom-application-id" ) );
+    assert( !ShouldMigrateLegacyDiscordApplicationId( false, "1536157545863847938" ) );
+    assert( !ShouldMigrateLegacyDiscordApplicationId( true, "507982587416018945" ) );
+
+    assert( BuildMusicBrainzCacheKey( "artist", "album", std::nullopt ) == "mb:metadata:6:artist:5:album" );
+    constexpr auto upperMbid = "A0B1C2D3-E4F5-6789-ABCD-EF0123456789";
+    constexpr auto lowerMbid = "a0b1c2d3-e4f5-6789-abcd-ef0123456789";
+    constexpr auto otherMbid = "b0b1c2d3-e4f5-6789-abcd-ef0123456789";
+    assert( BuildMusicBrainzCacheKey( "", "", std::optional<std::string>{ upperMbid } ) == std::string{ "mb:release:" } + lowerMbid );
+    assert( BuildMusicBrainzCacheKey( "artist", "album", std::optional<std::string>{ upperMbid } )
+            == BuildMusicBrainzCacheKey( "artist", "album", std::optional<std::string>{ lowerMbid } ) );
+    assert( BuildMusicBrainzCacheKey( "artist", "album", std::optional<std::string>{ upperMbid } )
+            != BuildMusicBrainzCacheKey( "artist", "album", std::optional<std::string>{ otherMbid } ) );
+    assert( BuildMusicBrainzCacheKey( "artist", "album", std::optional<std::string>{ "not-an-mbid" } )
+            == BuildMusicBrainzCacheKey( "artist", "album", std::nullopt ) );
+    assert( !BuildMusicBrainzCacheKey( "", "album", std::optional<std::string>{ "not-an-mbid" } ) );
+    assert( !BuildMusicBrainzCacheKey( "", "album", std::nullopt ) );
+    assert( BuildMusicBrainzCacheKey( "a|b", "c", std::nullopt ) != BuildMusicBrainzCacheKey( "a", "b|c", std::nullopt ) );
+    assert( BuildUploaderCacheKey( "artist|album" ) == "upload:artist|album" );
+    assert( BuildUploaderCacheKey( "artist|album" ) != BuildMusicBrainzCacheKey( "artist", "album", std::nullopt ) );
+    assert( !BuildUploaderCacheKey( "" ) );
+    assert( IsQualifiedCacheKey( std::string{ "mb:release:" } + lowerMbid ) );
+    assert( IsQualifiedCacheKey( "mb:metadata:6:artist:5:album" ) );
+    assert( IsQualifiedCacheKey( "upload:artist|album" ) );
+    assert( !IsQualifiedCacheKey( "artist|album" ) );
+    assert( !IsQualifiedCacheKey( "upload:" ) );
+    assert( CanCommitCacheResult( 4, 4 ) );
+    assert( !CanCommitCacheResult( 4, 5 ) );
+    assert( CanPublishRequestResult( 4, std::optional<uint64_t>{ 4 } ) );
+    assert( !CanPublishRequestResult( 4, std::optional<uint64_t>{ 5 } ) );
+    assert( !CanPublishRequestResult( 4, std::nullopt ) );
 
     assert( IsSecureImageUrl( "https://example.test/art.jpg" ) );
     assert( !IsSecureImageUrl( "http://example.test/art.jpg" ) );

@@ -16,8 +16,18 @@ def verify(root: Path, tag: str | None = None) -> None:
     version = read_version(root)
     expected_heading = f"# Discord Rich Presence Integration v{version}"
     release_notes = (root / "RELEASE_NOTES.md").read_text(encoding="utf-8")
-    if not release_notes.startswith(expected_heading):
+    if not release_notes.splitlines() or release_notes.splitlines()[0] != expected_heading:
         raise ValueError("RELEASE_NOTES.md heading does not match VERSION")
+
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    escaped_version = re.escape(version)
+    if not re.search(rf"^## \[{escaped_version}\]\[\] - \d{{4}}-\d{{2}}-\d{{2}}$", changelog, re.MULTILINE):
+        raise ValueError("CHANGELOG.md has no dated heading for VERSION")
+    if not re.search(rf"^\[unreleased\]: .+/compare/v{escaped_version}\.\.\.HEAD$", changelog, re.MULTILINE):
+        raise ValueError("CHANGELOG.md Unreleased link does not start at VERSION")
+    if not re.search(rf"^\[{escaped_version}\]: \S+v{escaped_version}$", changelog, re.MULTILINE):
+        raise ValueError("CHANGELOG.md release link does not end at VERSION")
+
     if tag and tag != f"v{version}":
         raise ValueError(f"Tag {tag!r} does not match VERSION v{version}")
 

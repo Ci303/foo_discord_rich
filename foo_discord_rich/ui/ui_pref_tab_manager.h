@@ -10,6 +10,7 @@ namespace drp::ui
 {
 
 class PreferenceTabMain;
+class PreferenceTabAdvanced;
 
 class PreferenceTabManager
     : public CDialogImpl<PreferenceTabManager>
@@ -35,6 +36,7 @@ public:
 
     void OnDataChanged();
     void RequestUiChange( int nId, bool enable );
+    bool HasPendingArtworkSettings() const;
 
     // preferences_page_instance
     HWND get_wnd() override;
@@ -58,6 +60,7 @@ private:
     CDialogImplBase* pcCurTab_ = nullptr;
 
     size_t activeTabIdx_ = 0;
+    PreferenceTabAdvanced* pAdvancedTab_ = nullptr;
     std::vector<std::unique_ptr<ITab>> tabs_;
 
     fb2k::CCoreDarkModeHooks darkModeHooks_;
