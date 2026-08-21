@@ -92,8 +92,7 @@ BEGIN
     GROUPBOX        "Album artwork",IDC_STATIC,6,191,314,53
     LTEXT           "Behaviour:",IDC_STATIC,15,203,38,8
     COMBOBOX        IDC_COMBO_ARTWORK_POLICY,58,200,255,58,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Fetch and display album art from MusicBrainz",IDC_CHECK_FETCH_ALBUM_ART,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,217,159,10
+    LTEXT           "Choose artwork sources and credentials on the Providers tab.",IDC_STATIC,15,217,240,9
     LTEXT           "Status: No artwork requested yet.",IDC_STATIC_ARTWORK_STATUS,15,230,298,9,SS_ENDELLIPSIS
     CONTROL         "Disable Rich Presence when paused",IDC_CHECK_DISABLE_WHEN_PAUSED,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,251,128,10
@@ -105,8 +104,8 @@ IDD_PREFS_ADVANCED_TAB DIALOGEX 0, 0, 327, 268
 STYLE DS_SETFONT | DS_CONTROL | WS_CHILD | WS_SYSMENU
 FONT 8, "Tahoma", 400, 0, 0x0
 BEGIN
-    LTEXT           "Discord application ID:",IDC_STATIC,13,16,87,8
-    EDITTEXT        IDC_EDIT_APP_TOKEN,101,15,203,12,ES_AUTOHSCROLL | WS_GROUP
+    LTEXT           "Discord application ID (public):",IDC_STATIC,13,16,101,8
+    EDITTEXT        IDC_EDIT_APP_TOKEN,116,15,188,12,ES_AUTOHSCROLL | WS_GROUP
     GROUPBOX        "Rich Presence asset keys",IDC_STATIC,6,35,314,136
     LTEXT           "Large image (light):",IDC_STATIC,17,56,72,8
     EDITTEXT        IDC_EDIT_LARGE_LIGHT_ID,101,55,203,12,ES_AUTOHSCROLL
@@ -120,20 +119,46 @@ BEGIN
     EDITTEXT        IDC_EDIT_SMALL_PAUSED_LIGHT_ID,101,132,203,12,ES_AUTOHSCROLL
     LTEXT           "Paused image (dark):",IDC_STATIC,17,151,72,8
     EDITTEXT        IDC_EDIT_SMALL_PAUSED_DARK_ID,101,150,203,12,ES_AUTOHSCROLL
-    GROUPBOX        "Art uploader",IDC_STATIC,6,173,207,91
-    CTEXT           "?",IDC_LINK_ART_UPLOADER_HELP,202,173,8,8
-    CONTROL         "Upload and display art (disables MusicBrainz fetcher)",IDC_CHECK_UPLOAD_ART,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,187,184,10
-    LTEXT           "Upload command",IDC_STATIC,12,201,58,8
-    EDITTEXT        IDC_EDIT_UPLOAD_COMMAND,12,213,145,14,ES_AUTOHSCROLL
-    PUSHBUTTON      "Test",IDC_BUTTON_TEST_UPLOADER,162,213,44,14
-    LTEXT           "Art pin query",IDC_STATIC,12,230,43,8
-    EDITTEXT        IDC_EDIT_UPLOAD_ART_PIN_QUERY,12,242,194,14,ES_AUTOHSCROLL
-    GROUPBOX        "Art cache",IDC_STATIC,218,173,101,91
-    PUSHBUTTON      "Reload from disk",IDC_BUTTON_LOAD_CACHE,224,187,90,14
-    PUSHBUTTON      "Save to disk",IDC_BUTTON_SAVE_CACHE,224,205,90,14
-    PUSHBUTTON      "Open containing folder...",IDC_BUTTON_OPEN_CACHE_FOLDER,224,223,90,14
-    PUSHBUTTON      "Clear cache",IDC_BUTTON_CLEAR_CACHE,224,241,90,14
+    GROUPBOX        "Artwork cache",IDC_STATIC,6,173,314,91
+    PUSHBUTTON      "Reload from disk",IDC_BUTTON_LOAD_CACHE,12,188,72,14
+    PUSHBUTTON      "Save to disk",IDC_BUTTON_SAVE_CACHE,89,188,72,14
+    PUSHBUTTON      "Open folder...",IDC_BUTTON_OPEN_CACHE_FOLDER,166,188,72,14
+    PUSHBUTTON      "Clear cache",IDC_BUTTON_CLEAR_CACHE,243,188,70,14
+    LTEXT           "The cache stores only resolved HTTPS image URLs and provider-qualified no-match results. Provider credentials are never written to it.",IDC_STATIC,12,213,297,29
+    LTEXT           "Changing provider settings re-evaluates the current track after Apply.",IDC_STATIC,12,246,297,9
+END
+
+IDD_PREFS_PROVIDERS_TAB DIALOGEX 0, 0, 327, 268
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD | WS_SYSMENU
+FONT 8, "Tahoma", 400, 0, 0x0
+BEGIN
+    GROUPBOX        "MusicBrainz / Cover Art Archive",IDC_STATIC,6,6,314,46
+    CONTROL         "Use this provider (no account or API key required)",IDC_CHECK_FETCH_ALBUM_ART,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,19,202,10
+    LTEXT           "Uses a release MBID; otherwise requires artist + album.",IDC_STATIC,15,34,237,9
+    PUSHBUTTON      "Details...",IDC_BUTTON_MUSICBRAINZ_HELP,258,18,54,14
+    GROUPBOX        "TheAudioDB fallback",IDC_STATIC,6,55,314,68
+    CONTROL         "Use TheAudioDB when earlier providers find no match",IDC_CHECK_FETCH_THEAUDIODB,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,68,205,10
+    LTEXT           "Supporter API key (required):",IDC_STATIC,15,84,124,9
+    EDITTEXT        IDC_EDIT_THEAUDIODB_API_KEY,15,96,112,14,ES_PASSWORD | ES_AUTOHSCROLL
+    CONTROL         "Show",IDC_CHECK_SHOW_THEAUDIODB_KEY,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,132,98,30,10
+    PUSHBUTTON      "Test",IDC_BUTTON_TEST_THEAUDIODB,166,96,30,14
+    PUSHBUTTON      "Clear",IDC_BUTTON_CLEAR_THEAUDIODB_KEY,200,96,34,14
+    PUSHBUTTON      "Get key...",IDC_BUTTON_THEAUDIODB_HELP,239,96,47,14
+    GROUPBOX        "Local and embedded artwork",IDC_STATIC,6,126,314,101
+    CONTROL         "Upload local/embedded artwork first",IDC_CHECK_UPLOAD_ART,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,139,143,10
+    LTEXT           "Discord cannot read files on this PC. A trusted uploader must return a public HTTPS image URL.",IDC_STATIC,15,153,293,18
+    LTEXT           "Upload command",IDC_STATIC,15,175,55,8
+    EDITTEXT        IDC_EDIT_UPLOAD_COMMAND,74,172,186,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "Test",IDC_BUTTON_TEST_UPLOADER,265,172,47,14
+    LTEXT           "Cache pin query",IDC_STATIC,15,195,55,8
+    EDITTEXT        IDC_EDIT_UPLOAD_ART_PIN_QUERY,74,192,186,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "Help...",IDC_LINK_ART_UPLOADER_HELP,265,192,47,14
+    LTEXT           "Order: local artwork, MusicBrainz / Cover Art Archive, then TheAudioDB.",IDC_STATIC,15,211,278,9
+    LTEXT           "Discord needs an Application ID, not an API key.",IDC_STATIC,9,239,205,9
+    PUSHBUTTON      "Provider requirements...",IDC_BUTTON_PROVIDER_REQUIREMENTS,214,235,106,14
 END
 
 IDD_PREFS_TROUBLESHOOTING_TAB DIALOGEX 0, 0, 327, 268
@@ -176,6 +201,10 @@ BEGIN
     IDD_PREFS_TROUBLESHOOTING_TAB, DIALOG
     BEGIN
     END
+
+    IDD_PREFS_PROVIDERS_TAB, DIALOG
+    BEGIN
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -196,6 +225,11 @@ BEGIN
 END
 
 IDD_PREFS_TROUBLESHOOTING_TAB AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+IDD_PREFS_PROVIDERS_TAB AFX_DIALOG_LAYOUT
 BEGIN
     0
 END

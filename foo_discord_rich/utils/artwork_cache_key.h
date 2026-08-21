@@ -75,11 +75,22 @@ inline std::optional<std::string> BuildUploaderCacheKey( const std::string& artP
     return "upload:" + artPinId;
 }
 
+inline std::optional<std::string> BuildTheAudioDbCacheKey( const std::string& artist, const std::string& album )
+{
+    if ( artist.empty() || album.empty() )
+    {
+        return std::nullopt;
+    }
+
+    return "tadb:metadata:" + std::to_string( artist.size() ) + ":" + artist + ":" + std::to_string( album.size() ) + ":" + album;
+}
+
 inline bool IsQualifiedCacheKey( std::string_view key )
 {
     constexpr std::string_view releasePrefix = "mb:release:";
     constexpr std::string_view metadataPrefix = "mb:metadata:";
     constexpr std::string_view uploaderPrefix = "upload:";
+    constexpr std::string_view theAudioDbPrefix = "tadb:metadata:";
 
     if ( key.starts_with( releasePrefix ) )
     {
@@ -87,7 +98,8 @@ inline bool IsQualifiedCacheKey( std::string_view key )
     }
 
     return ( key.starts_with( metadataPrefix ) && key.size() > metadataPrefix.size() )
-           || ( key.starts_with( uploaderPrefix ) && key.size() > uploaderPrefix.size() );
+           || ( key.starts_with( uploaderPrefix ) && key.size() > uploaderPrefix.size() )
+           || ( key.starts_with( theAudioDbPrefix ) && key.size() > theAudioDbPrefix.size() );
 }
 
 constexpr bool CanCommitCacheResult( uint64_t workGeneration, uint64_t currentGeneration ) noexcept

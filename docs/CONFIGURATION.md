@@ -171,16 +171,17 @@ results are truncated by the component.
 
 ## Album Art
 
-Album art can be provided in two ways:
+The **Providers** tab controls artwork sources. Enabled providers are tried in
+this fixed order:
 
-- MusicBrainz fetcher: automatic lookup using artist, album, and optional
-  MusicBrainz album ID tags.
-- Art uploader: runs a user-provided command that uploads local or embedded art
-  and returns a public image URL.
+1. Local or embedded front-cover artwork through the configured uploader.
+2. MusicBrainz and the Cover Art Archive.
+3. TheAudioDB.
 
-The uploader overrides MusicBrainz. If `Upload and display art` is enabled on
-the Advanced tab, MusicBrainz fetching is disabled even if the MusicBrainz
-checkbox is enabled on the Main tab.
+A clean no-match result advances to the next provider. A temporary provider
+failure also permits a fallback and is held in memory briefly to avoid a tight
+retry loop. Successful results and clean no-match results use separate,
+provider-qualified cache entries.
 
 The Main tab also provides an **Artwork behaviour** selector:
 
@@ -196,37 +197,97 @@ The Main tab also provides an **Artwork behaviour** selector:
 The artwork status line reports whether the applied configuration is idle,
 fetching, resolved, using a cached no-match result, or encountered a
 fetch/uploader failure. Unsaved artwork changes are labelled as pending rather
-than being mixed with live status. Cached status is provider-neutral, and URLs
-and uploader output are not shown.
+than being mixed with live status. Resolved status identifies the provider;
+URLs, keys, and uploader output are not shown.
 
-For automatic artwork:
+### MusicBrainz / Cover Art Archive
 
-1. Disable `Upload and display art` on the Advanced tab.
-2. Enable `Fetch and display album art from MusicBrainz` on the Main tab.
-3. Make sure tracks have useful `%artist%` and `%album%` tags.
-4. Prefer MusicBrainz album ID tags where available:
-   - `MUSICBRAINZ_ALBUMID`
-   - `MUSICBRAINZ ALBUM ID`
+This provider requires no account or API key. Enable it on the **Providers**
+tab and make sure tracks have useful `%artist%` and `%album%` tags. Prefer
+MusicBrainz album ID tags where available:
 
-Artwork is cached separately for MusicBrainz and the uploader so one provider's
-result cannot suppress the other. A valid MusicBrainz album ID identifies its
-release directly; otherwise the artist and album identify the lookup. Uploader
-results use the configured upload pin. Successful results are refreshed
-periodically, while "not found" results expire sooner so temporary metadata and
-service problems do not require manual cache clearing. Cache formats older than
-version 4 are deliberately ignored because their provider and release identity
-is ambiguous; the component rebuilds them as tracks are played.
+- `MUSICBRAINZ_ALBUMID`
+- `MUSICBRAINZ ALBUM ID`
 
-Use **Advanced > Art cache > Load** to reload the current cache file, or use
+A valid release ID identifies the release directly. Otherwise the artist and
+album identify the lookup. MusicBrainz requests are paced to comply with its
+public API requirements.
+
+### TheAudioDB
+
+TheAudioDB is an optional automatic fallback on the **Providers** tab. It uses
+artist and album metadata and accepts only an exact normalised album match.
+
+- This distributed component requires your own supporter key. TheAudioDB's
+  current [terms](https://www.theaudiodb.com/docs_terms_of_use.php) reserve its
+  shared free key for development projects and do not permit publishing
+  free-key apps to an app store. The component therefore rejects the shared
+  development key `123`.
+- Obtain a key from TheAudioDB's
+  [API-key page](https://www.theaudiodb.com/api_apply.php), then paste it into
+  the masked field. The [official API documentation](https://www.theaudiodb.com/free_music_api)
+  explains the access levels and rate limits.
+- The key is masked in Preferences, removed from request logs, and stored in
+  Windows Credential Manager for the current Windows user. The saved value is
+  never redisplayed in Preferences.
+
+The component never writes the key into its artwork cache or diagnostic web
+request URL. Use **Clear stored key** to remove it; TheAudioDB remains
+unavailable until a replacement is saved. After an HTTP 429 response, TheAudioDB is skipped for all tracks
+using that key for one minute; it becomes eligible again on the next presence
+refresh after that cooldown.
+
+### Local and embedded artwork
+
+foobar2000 can provide a local `folder.jpg`-style front cover or artwork
+embedded in the current audio file. Discord cannot read a path on this computer
+and cannot receive those image bytes directly through Rich Presence, so the
+component needs a public HTTPS image URL.
+
+Enable **Upload local/embedded artwork first** and configure a trusted uploader executable
+which:
+
+1. reads the artwork path from standard input;
+2. uploads the image to a service you control or trust; and
+3. writes one public HTTPS image URL to standard output.
+
+Embedded artwork is copied to a unique temporary file for the command and
+removed afterwards. The cache pin query identifies when an upload can be
+reused; its default is `%artist%|%album%`. Use **Test** against the current
+track before applying the setting. Upload commands are executable programs and
+must only be configured from a trusted source.
+
+### Provider requirements and exclusions
+
+Discord does not require an API key, bot token or client secret for this
+component. Rich Presence uses the public **Application ID** shown on the
+Advanced tab. If you deliberately create a custom application in the
+[Discord Developer Portal](https://discord.com/developers/applications), copy
+**General Information > Application ID** only.
+
+Discogs is not offered as an artwork source. Its current
+[API terms](https://support.discogs.com/hc/en-us/articles/360009334593-API-Terms-of-Use)
+treat images as restricted data, constrain caching, and require linked "Data
+provided by Discogs" attribution beside each use. A Discord activity image
+cannot reliably satisfy those requirements. A personal Discogs token does not
+remove them.
+
+TheAudioDB is credited in the provider name and this guide, as required for
+paid API use. Artwork remains subject to the rights of its respective owner.
+
+### Artwork cache
+
+Artwork is cached separately for the uploader, MusicBrainz, and TheAudioDB so
+one provider's result cannot suppress another. Successful results are refreshed
+periodically, while clean no-match results expire sooner. Cache formats older
+than version 4 are deliberately ignored because their provider and release
+identity is ambiguous; the component rebuilds them as tracks are played.
+
+Use **Advanced > Artwork cache > Reload from disk** to reload the current cache file, or use
 **Clear cache** if a bad lookup is cached. Load reports when no file exists.
 After a successful load or clear, the component immediately re-evaluates the
 current track where artwork is enabled; file errors are reported instead of
 being shown as successful operations.
-
-Use **Test** beside the upload command to run the configured uploader against
-the current track. The command may take up to ten seconds and the result is
-shown without applying the preferences. Upload commands are executable programs
-and should only be configured from a source you trust.
 
 ## Recommended Settings
 
@@ -235,14 +296,15 @@ and should only be configured from a source you trust.
 - Top: `[$if2(%title%,%filename%)]`
 - Middle: `[$if2(%artist%,Unknown artist)]`
 - Bottom: `[$if2(%album%,Unknown album)]`
-- Enable `Fetch and display album art from MusicBrainz`.
-- Disable `Upload and display art` unless you have configured an uploader.
+- Enable MusicBrainz / Cover Art Archive on the Providers tab.
+- Optionally enable TheAudioDB as a fallback.
+- Leave local artwork disabled unless you have configured a trusted uploader.
 
 ### Album Art First Run
 
-MusicBrainz art lookup runs in the background. The first play may briefly show
-the large image fallback, then update to album art after the request finishes.
-Subsequent plays use the local art cache.
+Artwork lookup runs in the background. The first play may briefly show the
+large-image fallback, then update after a provider returns artwork. Subsequent
+plays use the local artwork cache.
 
 ## Playback Images
 
@@ -308,7 +370,7 @@ activity Discord chooses to display.
 - Confirm uploader mode is disabled unless you configured an upload command.
 - Confirm the track has artist and album tags.
 - Try a release with a MusicBrainz album ID tag.
-- Use `Advanced > Art cache > Open containing folder...` to inspect cached
+- Use `Advanced > Artwork cache > Open folder...` to inspect cached
   results.
 - Enable debug logging in foobar2000 Advanced Preferences if you need request
   details.

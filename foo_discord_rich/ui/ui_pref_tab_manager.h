@@ -11,6 +11,7 @@ namespace drp::ui
 
 class PreferenceTabMain;
 class PreferenceTabAdvanced;
+class PreferenceTabProviders;
 
 class PreferenceTabManager
     : public CDialogImpl<PreferenceTabManager>
@@ -60,7 +61,7 @@ private:
     CDialogImplBase* pcCurTab_ = nullptr;
 
     size_t activeTabIdx_ = 0;
-    PreferenceTabAdvanced* pAdvancedTab_ = nullptr;
+    PreferenceTabProviders* pProvidersTab_ = nullptr;
     std::vector<std::unique_ptr<ITab>> tabs_;
 
     fb2k::CCoreDarkModeHooks darkModeHooks_;

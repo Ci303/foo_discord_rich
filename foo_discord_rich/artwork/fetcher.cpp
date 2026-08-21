@@ -3,6 +3,7 @@
 #include "fetcher.h"
 
 #include <artwork/musicbrainz_fetcher.h>
+#include <artwork/theaudiodb_fetcher.h>
 #include <artwork/uploader.h>
 #include <discord/discord_integration.h>
 
@@ -15,7 +16,10 @@
 #include <qwr/thread_name_setter.h>
 #include <qwr/visitor.h>
 #include <utils/artwork_cache_key.h>
+#include <utils/theaudiodb.h>
 #include <utils/validation.h>
+
+#include <type_traits>
 
 namespace fs = std::filesystem;
 
@@ -25,8 +29,9 @@ namespace
 const std::chrono::seconds kRequestProcessingDelay{ 2 };
 const std::chrono::seconds kPositiveCacheLifetime{ std::chrono::hours{ 24 * 30 } };
 const std::chrono::seconds kNegativeCacheLifetime{ std::chrono::hours{ 6 } };
+const std::chrono::seconds kProviderFailureCooldown{ 60 };
 constexpr std::uintmax_t kMaxCacheFileBytes = 4 * 1024 * 1024;
-constexpr size_t kMaxArtPinIdBytes = 1024;
+constexpr size_t kMaxCacheKeyBytes = 1024;
 constexpr size_t kMaxCacheEntries = 2048;
 
 }
@@ -43,13 +48,16 @@ std::optional<qwr::u8string> GenerateCacheKey( const drp::ArtworkFetcher::FetchR
             },
             []( const drp::ArtworkFetcher::UploadRequest& req ) {
                 return drp::artwork::BuildUploaderCacheKey( req.artPinId );
+            },
+            []( const drp::ArtworkFetcher::TheAudioDbFetchRequest& req ) {
+                return drp::artwork::BuildTheAudioDbCacheKey( req.artist, req.album );
             } },
         request );
     if ( !cacheKeyOpt )
     {
         return std::nullopt;
     }
-    if ( cacheKeyOpt->size() > kMaxArtPinIdBytes )
+    if ( cacheKeyOpt->size() > kMaxCacheKeyBytes )
     {
         drp::LogWarning( "Skipping album art request because the art cache key is too large" );
         return std::nullopt;
@@ -73,25 +81,45 @@ bool IsRequestExecutable( const drp::ArtworkFetcher::FetchRequest& request )
             },
             []( const drp::ArtworkFetcher::UploadRequest& req ) {
                 return !req.uploadCommand.empty();
+            },
+            []( const drp::ArtworkFetcher::TheAudioDbFetchRequest& req ) {
+                return drp::artwork::IsEligibleTheAudioDbSupporterKey( req.apiKey );
+            } },
+        request );
+}
+
+qwr::u8string_view ProviderName( const drp::ArtworkFetcher::FetchRequest& request )
+{
+    return std::visit(
+        qwr::Visitor{
+            []( const drp::ArtworkFetcher::MusicBrainzFetchRequest& ) -> qwr::u8string_view {
+                return "MusicBrainz / Cover Art Archive";
+            },
+            []( const drp::ArtworkFetcher::UploadRequest& ) -> qwr::u8string_view {
+                return "local artwork uploader";
+            },
+            []( const drp::ArtworkFetcher::TheAudioDbFetchRequest& ) -> qwr::u8string_view {
+                return "TheAudioDB";
             } },
         request );
 }
 
 qwr::u8string FetchingMessage( const drp::ArtworkFetcher::FetchRequest& request )
 {
-    return std::holds_alternative<drp::ArtworkFetcher::UploadRequest>( request )
-               ? "Running the configured artwork uploader..."
-               : "Fetching album artwork from MusicBrainz...";
+    if ( std::holds_alternative<drp::ArtworkFetcher::UploadRequest>( request ) )
+    {
+        return "Running the configured local artwork uploader...";
+    }
+    return fmt::format( "Fetching album artwork from {}...", ProviderName( request ) );
 }
 
 qwr::u8string ResolvedMessage( const drp::ArtworkFetcher::FetchRequest& request, bool cached )
 {
     if ( cached )
     {
-        return "Artwork resolved from cache.";
+        return fmt::format( "Artwork resolved from the {} cache.", ProviderName( request ) );
     }
-    const auto source = std::holds_alternative<drp::ArtworkFetcher::UploadRequest>( request ) ? "uploader" : "MusicBrainz";
-    return fmt::format( "Artwork resolved using {}.", source );
+    return fmt::format( "Artwork resolved using {}.", ProviderName( request ) );
 }
 
 qwr::u8string NotFoundMessage( const drp::ArtworkFetcher::FetchRequest& request, bool cached )
@@ -100,8 +128,7 @@ qwr::u8string NotFoundMessage( const drp::ArtworkFetcher::FetchRequest& request,
     {
         return "No artwork was found (cached result).";
     }
-    const auto source = std::holds_alternative<drp::ArtworkFetcher::UploadRequest>( request ) ? "uploader" : "MusicBrainz";
-    return fmt::format( "No artwork was found by {}.", source );
+    return fmt::format( "No artwork was found by {}.", ProviderName( request ) );
 }
 
 bool IsDiscordImageKeyInvalid( const qwr::u8string& imageKey )
@@ -166,63 +193,161 @@ void ArtworkFetcher::Finalize()
     SaveCache();
 }
 
-std::optional<qwr::u8string> ArtworkFetcher::GetArtUrl( const FetchRequest& request )
+std::optional<qwr::u8string> ArtworkFetcher::GetArtUrl( const std::vector<FetchRequest>& requests )
 {
-    const auto cacheKeyOpt = GenerateCacheKey( request );
-    if ( !cacheKeyOpt )
+    if ( requests.empty() )
     {
         std::unique_lock lock( mutex_ );
         SupersedeCurrentRequestLocked();
-        SetStatusLocked( Status::NotFound, "Artwork cannot be requested because the current track metadata is incomplete." );
+        SetStatusLocked( Status::NotFound, "No enabled artwork provider is ready to run." );
         lock.unlock();
         cv_.notify_all();
         return std::nullopt;
     }
 
     std::unique_lock lock( mutex_ );
+    const auto now = CurrentUnixTime();
+    bool sawIncompleteMetadata = false;
+    bool sawInvalidConfiguration = false;
+    bool sawCachedNoMatch = false;
+    bool sawProviderFailure = false;
+    std::optional<std::pair<FetchRequest, qwr::u8string>> pendingCandidate;
+    std::optional<std::pair<FetchRequest, qwr::u8string>> cachedFallback;
 
-    auto cacheIt = cacheKeyToEntry_.find( *cacheKeyOpt );
-    if ( cacheIt != cacheKeyToEntry_.end() )
+    for ( const auto& request: requests )
     {
-        const auto lifetime = cacheIt->second.artUrl ? kPositiveCacheLifetime : kNegativeCacheLifetime;
-        if ( drp::validation::IsCacheEntryFresh( cacheIt->second.fetchedAt, CurrentUnixTime(), lifetime.count() ) )
+        const auto cacheKeyOpt = GenerateCacheKey( request );
+        if ( !cacheKeyOpt )
+        {
+            sawIncompleteMetadata = true;
+            continue;
+        }
+
+        auto cacheIt = cacheKeyToEntry_.find( *cacheKeyOpt );
+        if ( cacheIt != cacheKeyToEntry_.end() )
+        {
+            const auto lifetime = cacheIt->second.artUrl ? kPositiveCacheLifetime : kNegativeCacheLifetime;
+            if ( drp::validation::IsCacheEntryFresh( cacheIt->second.fetchedAt, now, lifetime.count() ) )
+            {
+                if ( cacheIt->second.artUrl )
+                {
+                    if ( pendingCandidate )
+                    {
+                        cachedFallback = std::pair{ request, *cacheIt->second.artUrl };
+                        break;
+                    }
+
+                    SetStatusLocked( Status::Resolved, ResolvedMessage( request, true ) );
+                    const auto artUrl = cacheIt->second.artUrl;
+                    SupersedeCurrentRequestLocked();
+                    lock.unlock();
+                    cv_.notify_all();
+                    return artUrl;
+                }
+                sawCachedNoMatch = true;
+                continue;
+            }
+            cacheKeyToEntry_.erase( cacheIt );
+        }
+
+        if ( std::holds_alternative<TheAudioDbFetchRequest>( request ) )
+        {
+            const auto& theAudioDbRequest = std::get<TheAudioDbFetchRequest>( request );
+            if ( theaudiodb::IsRateLimited( theAudioDbRequest.apiKey ) )
+            {
+                sawProviderFailure = true;
+                continue;
+            }
+        }
+
+        auto failureIt = cacheKeyToRetryAfter_.find( *cacheKeyOpt );
+        if ( failureIt != cacheKeyToRetryAfter_.end() )
+        {
+            if ( failureIt->second > now )
+            {
+                sawProviderFailure = true;
+                continue;
+            }
+            cacheKeyToRetryAfter_.erase( failureIt );
+        }
+
+        if ( !IsRequestExecutable( request ) )
+        {
+            sawInvalidConfiguration = true;
+            continue;
+        }
+
+        if ( !pendingCandidate )
+        {
+            pendingCandidate = std::pair{ request, *cacheKeyOpt };
+        }
+    }
+
+    if ( pendingCandidate )
+    {
+        const auto& [request, cacheKey] = *pendingCandidate;
+        if ( isWorkerAvailable_ )
+        {
+            if ( !currentRequestOpt_ || currentRequestOpt_->request != request )
+            {
+                ++requestGeneration_;
+                currentRequestOpt_ = PendingRequest{ request, cacheKey, requestGeneration_ };
+                cv_.notify_all();
+            }
+
+            if ( cachedFallback )
+            {
+                SetStatusLocked(
+                    Status::Fetching,
+                    fmt::format(
+                        "{} Using cached artwork from {} while waiting.",
+                        FetchingMessage( request ),
+                        ProviderName( cachedFallback->first ) ) );
+                return cachedFallback->second;
+            }
+
+            SetStatusLocked( Status::Fetching, FetchingMessage( request ) );
+            return std::nullopt;
+        }
+
+        SupersedeCurrentRequestLocked();
+        if ( cachedFallback )
         {
             SetStatusLocked(
-                cacheIt->second.artUrl ? Status::Resolved : Status::NotFound,
-                cacheIt->second.artUrl ? ResolvedMessage( request, true ) : NotFoundMessage( request, true ) );
-            const auto artUrl = cacheIt->second.artUrl;
-            SupersedeCurrentRequestLocked();
-            lock.unlock();
-            cv_.notify_all();
-            return artUrl;
+                Status::Resolved,
+                fmt::format(
+                    "Artwork worker is unavailable; using cached artwork from {}.",
+                    ProviderName( cachedFallback->first ) ) );
+            return cachedFallback->second;
         }
-        cacheKeyToEntry_.erase( cacheIt );
-    }
 
-    if ( !IsRequestExecutable( request ) )
-    {
-        SupersedeCurrentRequestLocked();
-        SetStatusLocked( Status::Failed, "Artwork uploader is enabled but its command is empty." );
-        lock.unlock();
-        cv_.notify_all();
-        return std::nullopt;
-    }
-
-    if ( !isWorkerAvailable_ )
-    {
-        SupersedeCurrentRequestLocked();
         SetStatusLocked( Status::Failed, "Artwork worker is unavailable; the configured fallback will be used." );
         return std::nullopt;
     }
 
-    if ( !currentRequestOpt_ || currentRequestOpt_->request != request )
+    SupersedeCurrentRequestLocked();
+    if ( sawProviderFailure )
     {
-        ++requestGeneration_;
-        currentRequestOpt_ = PendingRequest{ request, *cacheKeyOpt, requestGeneration_ };
-        SetStatusLocked( Status::Fetching, FetchingMessage( request ) );
-        cv_.notify_all();
+        SetStatusLocked( Status::Failed, "No artwork was resolved; an enabled provider recently failed." );
     }
-
+    else if ( sawInvalidConfiguration )
+    {
+        SetStatusLocked( Status::Failed, "No artwork was resolved; an enabled provider is not configured correctly." );
+    }
+    else if ( sawCachedNoMatch )
+    {
+        SetStatusLocked( Status::NotFound, "No artwork was found by the enabled providers (cached result)." );
+    }
+    else if ( sawIncompleteMetadata )
+    {
+        SetStatusLocked( Status::NotFound, "Artwork cannot be requested because the current track metadata is incomplete." );
+    }
+    else
+    {
+        SetStatusLocked( Status::NotFound, "No artwork was found by the enabled providers." );
+    }
+    lock.unlock();
+    cv_.notify_all();
     return std::nullopt;
 }
 
@@ -279,7 +404,7 @@ bool ArtworkFetcher::LoadCache( bool throwOnError )
         const auto now = CurrentUnixTime();
         for ( const auto& [key, value]: entries.items() )
         {
-            if ( key.size() > kMaxArtPinIdBytes || !artwork::IsQualifiedCacheKey( key ) || loadedCache.size() >= kMaxCacheEntries || !value.is_object() )
+            if ( key.size() > kMaxCacheKeyBytes || !artwork::IsQualifiedCacheKey( key ) || loadedCache.size() >= kMaxCacheEntries || !value.is_object() )
             {
                 continue;
             }
@@ -304,6 +429,7 @@ bool ArtworkFetcher::LoadCache( bool throwOnError )
         {
             std::unique_lock lock( mutex_ );
             cacheKeyToEntry_ = std::move( loadedCache );
+            cacheKeyToRetryAfter_.clear();
             ++cacheGeneration_;
             SupersedeCurrentRequestLocked();
             SetStatusLocked( Status::Idle, "Artwork cache loaded; the active track will be re-evaluated where applicable." );
@@ -387,11 +513,35 @@ void ArtworkFetcher::ClearCache()
     {
         std::unique_lock lock( mutex_ );
         cacheKeyToEntry_.clear();
+        cacheKeyToRetryAfter_.clear();
         ++cacheGeneration_;
         SupersedeCurrentRequestLocked();
         SetStatusLocked( Status::Idle, "Artwork cache cleared; no artwork requested yet." );
     }
     cv_.notify_all();
+}
+
+void ArtworkFetcher::InvalidateProviderCache( ProviderCache provider )
+{
+    const qwr::u8string_view prefix = provider == ProviderCache::Uploader ? "upload:" : "tadb:";
+    bool removedCacheEntry = false;
+    {
+        std::unique_lock lock( mutex_ );
+        removedCacheEntry = std::erase_if( cacheKeyToEntry_, [prefix]( const auto& item ) {
+            return qwr::u8string_view{ item.first }.starts_with( prefix );
+        } ) > 0;
+        std::erase_if( cacheKeyToRetryAfter_, [prefix]( const auto& item ) {
+            return qwr::u8string_view{ item.first }.starts_with( prefix );
+        } );
+        ++cacheGeneration_;
+        SupersedeCurrentRequestLocked();
+        SetStatusLocked( Status::Idle, "Provider settings changed; the active track will be re-evaluated." );
+    }
+    cv_.notify_all();
+    if ( removedCacheEntry )
+    {
+        SaveCache();
+    }
 }
 
 std::filesystem::path ArtworkFetcher::GetCacheFilePath()
@@ -463,7 +613,19 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
         }
 
         auto& work = *workOpt;
-        auto outcome = std::visit( [&]( const auto& arg ) { return ProcessFetchRequest( arg ); }, work.pending.request );
+        auto outcome = std::visit(
+            [&]( const auto& arg ) {
+                using RequestType = std::decay_t<decltype( arg )>;
+                if constexpr ( std::is_same_v<RequestType, TheAudioDbFetchRequest> )
+                {
+                    return ProcessFetchRequest( arg, work.pending.requestGeneration, work.cacheGeneration );
+                }
+                else
+                {
+                    return ProcessFetchRequest( arg );
+                }
+            },
+            work.pending.request );
         if ( !outcome.artUrl && ( qwr::GlobalAbortCallback::GetInstance().is_aborting() || token.stop_requested() ) )
         { // do not save nullopt if interrupted, because it might actually had the image
             return;
@@ -473,9 +635,10 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
         {
             outcome.artUrl.reset();
             outcome.cacheable = false;
+            outcome.failureMessage = "An artwork provider returned an image URL Discord cannot use; trying the next provider.";
         }
 
-        bool shouldRefreshImage = false;
+        bool shouldRefreshImage = outcome.rateLimited;
         {
             std::unique_lock lock( mutex_ );
             const bool mayCommit = artwork::CanCommitCacheResult( work.cacheGeneration, cacheGeneration_ );
@@ -491,6 +654,7 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
 
             if ( mayCommit && outcome.cacheable )
             {
+                cacheKeyToRetryAfter_.erase( work.pending.cacheKey );
                 if ( !cacheKeyToEntry_.contains( work.pending.cacheKey ) && cacheKeyToEntry_.size() >= kMaxCacheEntries )
                 {
                     const auto oldest = std::min_element( cacheKeyToEntry_.begin(), cacheKeyToEntry_.end(), []( const auto& left, const auto& right ) {
@@ -502,6 +666,23 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
                     }
                 }
                 cacheKeyToEntry_.insert_or_assign( work.pending.cacheKey, CacheEntry{ outcome.artUrl, CurrentUnixTime() } );
+            }
+            else if ( mayCommit && !outcome.failureMessage.empty() )
+            {
+                if ( !outcome.rateLimited )
+                {
+                    if ( !cacheKeyToRetryAfter_.contains( work.pending.cacheKey ) && cacheKeyToRetryAfter_.size() >= kMaxCacheEntries )
+                    {
+                        const auto earliestRetry = std::min_element( cacheKeyToRetryAfter_.begin(), cacheKeyToRetryAfter_.end(), []( const auto& left, const auto& right ) {
+                            return left.second < right.second;
+                        } );
+                        if ( earliestRetry != cacheKeyToRetryAfter_.end() )
+                        {
+                            cacheKeyToRetryAfter_.erase( earliestRetry );
+                        }
+                    }
+                    cacheKeyToRetryAfter_.insert_or_assign( work.pending.cacheKey, CurrentUnixTime() + kProviderFailureCooldown.count() );
+                }
             }
 
             if ( mayPublish )
@@ -521,7 +702,7 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
                     SetStatusLocked( Status::Failed, outcome.failureMessage.empty() ? "Artwork request failed; see the foobar2000 console." : outcome.failureMessage );
                 }
 
-                shouldRefreshImage = outcome.artUrl.has_value();
+                shouldRefreshImage = outcome.cacheable || !outcome.failureMessage.empty();
                 currentRequestOpt_.reset();
             }
             lastRequest.reset();
@@ -593,6 +774,54 @@ ArtworkFetcher::FetchOutcome ArtworkFetcher::ProcessFetchRequest( const UploadRe
     {
         LogError( "Unexpected art upload failure" );
         return { {}, false, "Artwork uploader failed; see the foobar2000 console." };
+    }
+}
+
+ArtworkFetcher::FetchOutcome ArtworkFetcher::ProcessFetchRequest(
+    const TheAudioDbFetchRequest& request,
+    uint64_t requestGeneration,
+    uint64_t cacheGeneration )
+{
+    try
+    {
+        auto& aborter = qwr::GlobalAbortCallback::GetInstance();
+        return {
+            theaudiodb::FetchArt(
+                request.artist,
+                request.album,
+                request.apiKey,
+                aborter,
+                [this, requestGeneration, cacheGeneration] {
+                    std::unique_lock lock( mutex_ );
+                    return cacheGeneration == cacheGeneration_
+                           && currentRequestOpt_
+                           && currentRequestOpt_->requestGeneration == requestGeneration;
+                } ),
+            true };
+    }
+    catch ( const theaudiodb::RateLimitedException& e )
+    {
+        LogWarning( e.what() );
+        return { {}, false, "TheAudioDB rate limit reached; the provider will be skipped for one minute.", true };
+    }
+    catch ( const qwr::QwrException& e )
+    {
+        LogError( e.what() );
+        return { {}, false, "TheAudioDB artwork request failed; see the foobar2000 console." };
+    }
+    catch ( const exception_aborted& /*e*/ )
+    {
+        return {};
+    }
+    catch ( const std::exception& e )
+    {
+        LogError( fmt::format( "Unexpected TheAudioDB art fetch failure: {}", e.what() ) );
+        return { {}, false, "TheAudioDB artwork request failed; see the foobar2000 console." };
+    }
+    catch ( ... )
+    {
+        LogError( "Unexpected TheAudioDB art fetch failure" );
+        return { {}, false, "TheAudioDB artwork request failed; see the foobar2000 console." };
     }
 }
 

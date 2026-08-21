@@ -37,15 +37,10 @@ public:
         COMMAND_HANDLER_EX( IDC_EDIT_SMALL_PLAYING_DARK_ID, EN_CHANGE, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_EDIT_SMALL_PAUSED_LIGHT_ID, EN_CHANGE, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_EDIT_SMALL_PAUSED_DARK_ID, EN_CHANGE, OnDdxUiChange )
-        COMMAND_HANDLER_EX( IDC_LINK_ART_UPLOADER_HELP, BN_CLICKED, OnHelpUrlClick )
-        COMMAND_HANDLER_EX( IDC_CHECK_UPLOAD_ART, BN_CLICKED, OnDdxUiChange )
-        COMMAND_HANDLER_EX( IDC_EDIT_UPLOAD_COMMAND, EN_CHANGE, OnDdxUiChange )
-        COMMAND_HANDLER_EX( IDC_EDIT_UPLOAD_ART_PIN_QUERY, EN_CHANGE, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_BUTTON_LOAD_CACHE, BN_CLICKED, OnLoadCacheClick )
         COMMAND_HANDLER_EX( IDC_BUTTON_SAVE_CACHE, BN_CLICKED, OnSaveCacheClick )
         COMMAND_HANDLER_EX( IDC_BUTTON_OPEN_CACHE_FOLDER, BN_CLICKED, OnOpenCacheFolderClick )
         COMMAND_HANDLER_EX( IDC_BUTTON_CLEAR_CACHE, BN_CLICKED, OnClearCacheClick )
-        COMMAND_HANDLER_EX( IDC_BUTTON_TEST_UPLOADER, BN_CLICKED, OnTestUploaderClick )
     END_MSG_MAP()
 
 public:
@@ -61,17 +56,13 @@ public:
     void Apply() override;
     void Reset() override;
 
-    bool HasPendingArtworkSettings() const;
-
 private:
     BOOL OnInitDialog( HWND hwndFocus, LPARAM lParam );
     void OnDdxUiChange( UINT uNotifyCode, int nID, CWindow wndCtl );
-    void OnHelpUrlClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnLoadCacheClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnSaveCacheClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnOpenCacheFolderClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnClearCacheClick( UINT uNotifyCode, int nID, CWindow wndCtl );
-    void OnTestUploaderClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnChanged();
     void DoFullDdxToUi();
 
@@ -90,17 +81,12 @@ private:
                             playingImageId_Light,
                             playingImageId_Dark,
                             pausedImageId_Light,
-                            pausedImageId_Dark,
-                            enableArtUpload,
-                            artUploadCmd,
-                            artUploadPinQuery )
+                            pausedImageId_Dark )
 
-#undef SPTF_DEFINE_OPTIONS
-#undef SPTF_DEFINE_OPTION
+#undef SPTF_DEFINE_UI_OPTIONS
+#undef SPTF_DEFINE_UI_OPTION
 
-    std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 10> ddxOptions_;
-
-    CHyperLink helpUrl_;
+    std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 7> ddxOptions_;
 
     fb2k::CCoreDarkModeHooks darkModeHooks_;
 };

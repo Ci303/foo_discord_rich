@@ -7,6 +7,7 @@
 #include <fb2k/config.h>
 #include <utils/validation.h>
 #include <utils/artwork_policy.h>
+#include <utils/credential_store.h>
 
 #include <qwr/algorithm.h>
 
@@ -85,6 +86,25 @@ std::optional<drp::ArtworkFetcher::UploadRequest> CreateUploadRequest( const met
         .uploadCommand = config::artUploadCmd };
 }
 
+std::optional<drp::ArtworkFetcher::TheAudioDbFetchRequest> CreateTheAudioDbRequest( const metadb_handle_ptr& handle )
+{
+    if ( handle.is_empty() )
+    {
+        return std::nullopt;
+    }
+
+    const auto apiKey = drp::credentials::ReadTheAudioDbApiKey();
+    if ( !apiKey )
+    {
+        return std::nullopt;
+    }
+
+    return drp::ArtworkFetcher::TheAudioDbFetchRequest{
+        .artist = EvaluateQueryForPlayingTrack( handle, "$if3(%album artist%,%artist%,%composer%)" ),
+        .album = EvaluateQueryForPlayingTrack( handle, "%album%" ),
+        .apiKey = *apiKey };
+}
+
 std::optional<qwr::u8string> ResolveTrackArtUrl( const drp::internal::PresenceData& pd )
 {
     if ( pd.metadb.is_empty() )
@@ -92,12 +112,13 @@ std::optional<qwr::u8string> ResolveTrackArtUrl( const drp::internal::PresenceDa
         return std::nullopt;
     }
 
+    std::vector<drp::ArtworkFetcher::FetchRequest> requests;
     if ( config::enableArtUpload )
     {
         const auto requestOpt = CreateUploadRequest( pd.metadb );
         if ( requestOpt )
         {
-            return drp::ArtworkFetcher::Get().GetArtUrl( *requestOpt );
+            requests.emplace_back( *requestOpt );
         }
     }
 
@@ -106,11 +127,20 @@ std::optional<qwr::u8string> ResolveTrackArtUrl( const drp::internal::PresenceDa
         const auto requestOpt = CreateMusicBrainzRequest( pd.metadb );
         if ( requestOpt )
         {
-            return drp::ArtworkFetcher::Get().GetArtUrl( *requestOpt );
+            requests.emplace_back( *requestOpt );
         }
     }
 
-    return std::nullopt;
+    if ( config::enableTheAudioDbFetch )
+    {
+        const auto requestOpt = CreateTheAudioDbRequest( pd.metadb );
+        if ( requestOpt )
+        {
+            requests.emplace_back( *requestOpt );
+        }
+    }
+
+    return drp::ArtworkFetcher::Get().GetArtUrl( requests );
 }
 
 double ParseDoubleOrZero( const qwr::u8string& value )
@@ -290,7 +320,7 @@ void PresenceModifier::UpdateImage()
     auto& pd = presenceData_;
 
     const auto policy = artwork::NormaliseDisplayPolicy( static_cast<artwork::DisplayPolicy>( config::artworkDisplayPolicy ) );
-    const bool hasArtworkSource = config::enableArtUpload || config::enableAlbumArtFetch;
+    const bool hasArtworkSource = config::enableArtUpload || config::enableAlbumArtFetch || config::enableTheAudioDbFetch;
     const bool shouldResolveArtwork = artwork::ShouldResolveArtwork( policy ) && pd.metadb.is_valid() && hasArtworkSource;
     if ( shouldResolveArtwork )
     {

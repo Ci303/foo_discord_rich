@@ -36,6 +36,9 @@
     <ClCompile Include="ui\ui_pref_tab_troubleshooting.cpp">
       <Filter>ui</Filter>
     </ClCompile>
+    <ClCompile Include="ui\ui_pref_tab_providers.cpp">
+      <Filter>ui</Filter>
+    </ClCompile>
     <ClCompile Include="discord\discord_integration.cpp">
       <Filter>discord</Filter>
     </ClCompile>
@@ -51,6 +54,9 @@
     <ClCompile Include="utils\logging.cpp">
       <Filter>utils</Filter>
     </ClCompile>
+    <ClCompile Include="utils\credential_store.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
     <ClCompile Include="discord\presence_data.cpp">
       <Filter>discord</Filter>
     </ClCompile>
@@ -64,6 +70,9 @@
       <Filter>utils</Filter>
     </ClCompile>
     <ClCompile Include="artwork\musicbrainz_fetcher.cpp">
+      <Filter>artwork</Filter>
+    </ClCompile>
+    <ClCompile Include="artwork\theaudiodb_fetcher.cpp">
       <Filter>artwork</Filter>
     </ClCompile>
     <ClCompile Include="artwork\uploader.cpp">
@@ -92,6 +101,9 @@
     <ClInclude Include="ui\ui_pref_tab_troubleshooting.h">
       <Filter>ui</Filter>
     </ClInclude>
+    <ClInclude Include="ui\ui_pref_tab_providers.h">
+      <Filter>ui</Filter>
+    </ClInclude>
     <ClInclude Include="discord\discord_integration.h">
       <Filter>discord</Filter>
     </ClInclude>
@@ -111,6 +123,9 @@
     <ClInclude Include="utils\logging.h">
       <Filter>utils</Filter>
     </ClInclude>
+    <ClInclude Include="utils\credential_store.h">
+      <Filter>utils</Filter>
+    </ClInclude>
     <ClInclude Include="utils\subprocess_executor.h">
       <Filter>utils</Filter>
     </ClInclude>
@@ -120,6 +135,9 @@
     <ClInclude Include="utils\artwork_policy.h">
       <Filter>utils</Filter>
     </ClInclude>
+    <ClInclude Include="utils\theaudiodb.h">
+      <Filter>utils</Filter>
+    </ClInclude>
     <ClInclude Include="utils\artwork_cache_key.h">
       <Filter>utils</Filter>
     </ClInclude>
@@ -127,6 +145,9 @@
       <Filter>utils</Filter>
     </ClInclude>
     <ClInclude Include="artwork\musicbrainz_fetcher.h">
+      <Filter>artwork</Filter>
+    </ClInclude>
+    <ClInclude Include="artwork\theaudiodb_fetcher.h">
       <Filter>artwork</Filter>
     </ClInclude>
     <ClInclude Include="artwork\uploader.h">

@@ -35,7 +35,6 @@ public:
         COMMAND_HANDLER_EX( IDC_EDIT_TOP_TEXT, EN_CHANGE, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_EDIT_MIDDLE_TEXT, EN_CHANGE, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_EDIT_BOTTOM_TEXT, EN_CHANGE, OnDdxUiChange )
-        COMMAND_HANDLER_EX( IDC_CHECK_FETCH_ALBUM_ART, BN_CLICKED, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_COMBO_ARTWORK_POLICY, CBN_SELCHANGE, OnDdxUiChange )
         COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_IMG_LIGHT, IDC_RADIO_IMG_DISABLED, BN_CLICKED, OnDdxUiChange )
         COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_PLAYBACK_IMG_LIGHT, IDC_RADIO_PLAYBACK_IMG_DISABLED, BN_CLICKED, OnDdxUiChange )
@@ -84,7 +83,6 @@ private:
                             topTextQuery,
                             middleTextQuery,
                             bottomTextQuery,
-                            enableAlbumArtFetch,
                             artworkDisplayPolicy,
                             largeImageSettings,
                             smallImageSettings,
@@ -92,14 +90,12 @@ private:
                             swapSmallImages )
     // clang-format on
 
-#undef SPTF_DEFINE_OPTIONS
-#undef SPTF_DEFINE_OPTION
+#undef SPTF_DEFINE_UI_OPTIONS
+#undef SPTF_DEFINE_UI_OPTION
 
-    std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 10> ddxOptions_;
+    std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 9> ddxOptions_;
 
     CHyperLink helpUrl_;
-
-    bool isAlbumArtFetchOverriden_ = false;
 
     fb2k::CCoreDarkModeHooks darkModeHooks_;
 };

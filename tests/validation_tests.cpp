@@ -2,6 +2,7 @@
 #include <utils/validation.h>
 #include <utils/artwork_policy.h>
 #include <utils/discord_application_id_migration.h>
+#include <utils/theaudiodb.h>
 
 #include <cassert>
 
@@ -9,14 +10,21 @@ int main()
 {
     using drp::artwork::DisplayPolicy;
     using drp::artwork::BuildMusicBrainzCacheKey;
+    using drp::artwork::BuildTheAudioDbCacheKey;
     using drp::artwork::BuildUploaderCacheKey;
     using drp::artwork::CanCommitCacheResult;
     using drp::artwork::CanPublishRequestResult;
+    using drp::artwork::IsEligibleTheAudioDbSupporterKey;
     using drp::artwork::IsValidDisplayPolicy;
     using drp::artwork::IsQualifiedCacheKey;
     using drp::artwork::NormaliseDisplayPolicy;
     using drp::artwork::ShouldResolveArtwork;
     using drp::artwork::ShouldUseFallbackImage;
+    using drp::artwork::IsValidTheAudioDbApiKey;
+    using drp::artwork::IsTheAudioDbLookupMatch;
+    using drp::artwork::NormaliseTheAudioDbLookupText;
+    using drp::artwork::SelectTheAudioDbArtworkUrl;
+    using drp::artwork::TheAudioDbAlbumCandidate;
     using drp::config::ShouldMigrateLegacyDiscordApplicationId;
     using drp::validation::IsSecureImageUrl;
     using drp::validation::IsCacheEntryFresh;
@@ -56,9 +64,13 @@ int main()
     assert( BuildUploaderCacheKey( "artist|album" ) == "upload:artist|album" );
     assert( BuildUploaderCacheKey( "artist|album" ) != BuildMusicBrainzCacheKey( "artist", "album", std::nullopt ) );
     assert( !BuildUploaderCacheKey( "" ) );
+    assert( BuildTheAudioDbCacheKey( "artist", "album" ) == "tadb:metadata:6:artist:5:album" );
+    assert( BuildTheAudioDbCacheKey( "a|b", "c" ) != BuildTheAudioDbCacheKey( "a", "b|c" ) );
+    assert( !BuildTheAudioDbCacheKey( "", "album" ) );
     assert( IsQualifiedCacheKey( std::string{ "mb:release:" } + lowerMbid ) );
     assert( IsQualifiedCacheKey( "mb:metadata:6:artist:5:album" ) );
     assert( IsQualifiedCacheKey( "upload:artist|album" ) );
+    assert( IsQualifiedCacheKey( "tadb:metadata:6:artist:5:album" ) );
     assert( !IsQualifiedCacheKey( "artist|album" ) );
     assert( !IsQualifiedCacheKey( "upload:" ) );
     assert( CanCommitCacheResult( 4, 4 ) );
@@ -66,6 +78,28 @@ int main()
     assert( CanPublishRequestResult( 4, std::optional<uint64_t>{ 4 } ) );
     assert( !CanPublishRequestResult( 4, std::optional<uint64_t>{ 5 } ) );
     assert( !CanPublishRequestResult( 4, std::nullopt ) );
+
+    assert( IsValidTheAudioDbApiKey( "123" ) );
+    assert( IsValidTheAudioDbApiKey( "premium_Key-42" ) );
+    assert( !IsValidTheAudioDbApiKey( "" ) );
+    assert( !IsValidTheAudioDbApiKey( "bad/key" ) );
+    assert( !IsValidTheAudioDbApiKey( std::string( 129, 'a' ) ) );
+    assert( !IsEligibleTheAudioDbSupporterKey( "" ) );
+    assert( !IsEligibleTheAudioDbSupporterKey( "123" ) );
+    assert( !IsEligibleTheAudioDbSupporterKey( "bad/key" ) );
+    assert( IsEligibleTheAudioDbSupporterKey( "premium_Key-42" ) );
+    assert( NormaliseTheAudioDbLookupText( "  ColdPlay\r\n" ) == "coldplay" );
+    assert( NormaliseTheAudioDbLookupText( "Parachutes" ) == "parachutes" );
+    assert( NormaliseTheAudioDbLookupText( " \t " ).empty() );
+    assert( IsTheAudioDbLookupMatch( L"  BJ\u00D6RK ", L"Bj\u00F6rk" ) );
+    assert( IsTheAudioDbLookupMatch( L"Bjo\u0308rk", L"BJ\u00D6RK" ) );
+    assert( !IsTheAudioDbLookupMatch( L"Bj\u00F6rk", L"Bork" ) );
+    const std::vector<TheAudioDbAlbumCandidate> audioDbCandidates{
+        { L"Wrong Artist", L"Homogenic", "https://example.test/wrong-hq.jpg", "https://example.test/wrong.jpg" },
+        { L"BJ\u00D6RK", L"Homogenic", "http://example.test/bad-hq.jpg", "https://example.test/valid.jpg" },
+    };
+    assert( SelectTheAudioDbArtworkUrl( audioDbCandidates, L"Bj\u00F6rk", L"Homogenic" ) == "https://example.test/valid.jpg" );
+    assert( !SelectTheAudioDbArtworkUrl( audioDbCandidates, L"Bj\u00F6rk", L"Vespertine" ) );
 
     assert( IsSecureImageUrl( "https://example.test/art.jpg" ) );
     assert( !IsSecureImageUrl( "http://example.test/art.jpg" ) );

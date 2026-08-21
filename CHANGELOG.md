@@ -16,6 +16,17 @@ ___
 
 ## [Unreleased][]
 
+### Added
+- Added a Providers preference tab for artwork source requirements, local/embedded artwork upload settings, and masked TheAudioDB credentials.
+- Added TheAudioDB as an optional artwork fallback using a user-supplied supporter key.
+
+### Changed
+- Moved provider-specific artwork controls out of Main and Advanced without changing their persisted settings.
+- Changed artwork resolution to try local artwork, MusicBrainz / Cover Art Archive, and TheAudioDB in order, while keeping cache results provider-specific.
+
+### Security
+- Redacted TheAudioDB v1 keys from URL-path logging and kept provider credentials out of the artwork cache.
+
 ## [2.0.3-ci303.6][] - 2026-08-11
 
 ### Added

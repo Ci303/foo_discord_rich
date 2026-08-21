@@ -38,7 +38,6 @@ PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
     , topTextQuery_( config::topTextQuery )
     , middleTextQuery_( config::middleTextQuery )
     , bottomTextQuery_( config::bottomTextQuery )
-    , enableAlbumArtFetch_( config::enableAlbumArtFetch )
     , artworkDisplayPolicy_( config::artworkDisplayPolicy,
           { { artwork::DisplayPolicy::PreferArtwork, 0 }, { artwork::DisplayPolicy::ApplicationIcon, 1 }, { artwork::DisplayPolicy::ArtworkOnly, 2 } } )
     , largeImageSettings_( config::largeImageSettings, { { ImageSetting::Light, IDC_RADIO_IMG_LIGHT }, { ImageSetting::Dark, IDC_RADIO_IMG_DARK }, { ImageSetting::Disabled, IDC_RADIO_IMG_DISABLED } } )
@@ -50,7 +49,6 @@ PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( topTextQuery_, IDC_EDIT_TOP_TEXT ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( middleTextQuery_, IDC_EDIT_MIDDLE_TEXT ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( bottomTextQuery_, IDC_EDIT_BOTTOM_TEXT ),
-          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( enableAlbumArtFetch_, IDC_CHECK_FETCH_ALBUM_ART ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_ComboBox>( artworkDisplayPolicy_, IDC_COMBO_ARTWORK_POLICY ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>( largeImageSettings_, std::initializer_list<int>{ IDC_RADIO_IMG_LIGHT, IDC_RADIO_IMG_DARK, IDC_RADIO_IMG_DISABLED } ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>( smallImageSettings_, std::initializer_list<int>{ IDC_RADIO_PLAYBACK_IMG_LIGHT, IDC_RADIO_PLAYBACK_IMG_DARK, IDC_RADIO_PLAYBACK_IMG_DISABLED } ),
@@ -58,7 +56,6 @@ PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( swapSmallImages_, IDC_CHECK_SWAP_STATUS ),
       } )
 {
-    isAlbumArtFetchOverriden_ = config::enableArtUpload;
 }
 
 PreferenceTabMain::~PreferenceTabMain()
@@ -86,11 +83,6 @@ const wchar_t* PreferenceTabMain::Name() const
 
 void PreferenceTabMain::OnUiChangeRequest( int nID, bool enable )
 {
-    if ( nID == IDC_CHECK_FETCH_ALBUM_ART )
-    {
-        enableAlbumArtFetch_.SetValue( enable );
-        isAlbumArtFetchOverriden_ = !enable;
-    }
 }
 
 t_uint32 PreferenceTabMain::GetState()
@@ -118,7 +110,6 @@ void PreferenceTabMain::Reset()
         ddxOpt->Option().ResetToDefault();
     }
 
-    isAlbumArtFetchOverriden_ = false;
     DoFullDdxToUi();
 }
 
@@ -137,7 +128,6 @@ BOOL PreferenceTabMain::OnInitDialog( HWND hwndFocus, LPARAM lParam )
     }
     DoFullDdxToUi();
 
-    CButton( GetDlgItem( IDC_CHECK_FETCH_ALBUM_ART ) ).EnableWindow( !isAlbumArtFetchOverriden_ );
     UpdateArtworkStatus();
     SetTimer( kArtworkStatusTimerId, 1000 );
 
@@ -201,8 +191,7 @@ void PreferenceTabMain::OnDestroy()
 void PreferenceTabMain::UpdateArtworkStatus()
 {
     qwr::u8string message;
-    const bool hasPendingArtworkSettings = enableAlbumArtFetch_.HasChanged()
-                                           || artworkDisplayPolicy_.HasChanged()
+    const bool hasPendingArtworkSettings = artworkDisplayPolicy_.HasChanged()
                                            || pParent_->HasPendingArtworkSettings();
     const auto appliedPolicy = artwork::NormaliseDisplayPolicy( static_cast<artwork::DisplayPolicy>( config::artworkDisplayPolicy ) );
     if ( hasPendingArtworkSettings )
@@ -213,7 +202,9 @@ void PreferenceTabMain::UpdateArtworkStatus()
     {
         message = "Artwork disabled by the selected behaviour.";
     }
-    else if ( !static_cast<bool>( config::enableArtUpload ) && !static_cast<bool>( config::enableAlbumArtFetch ) )
+    else if ( !static_cast<bool>( config::enableArtUpload )
+              && !static_cast<bool>( config::enableAlbumArtFetch )
+              && !static_cast<bool>( config::enableTheAudioDbFetch ) )
     {
         message = "No artwork source is enabled.";
     }

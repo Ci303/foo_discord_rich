@@ -3,11 +3,9 @@
 #include "ui_pref_tab_advanced.h"
 
 #include <artwork/fetcher.h>
-#include <artwork/uploader.h>
 #include <discord/discord_integration.h>
 #include <fb2k/config.h>
 #include <ui/ui_pref_tab_manager.h>
-#include <utils/validation.h>
 
 #include <qwr/fb2k_config_ui_option.h>
 
@@ -27,9 +25,6 @@ PreferenceTabAdvanced::PreferenceTabAdvanced( PreferenceTabManager* pParent )
     , playingImageId_Dark_( config::playingImageId_Dark )
     , pausedImageId_Light_( config::pausedImageId_Light )
     , pausedImageId_Dark_( config::pausedImageId_Dark )
-    , enableArtUpload_( config::enableArtUpload )
-    , artUploadCmd_( config::artUploadCmd )
-    , artUploadPinQuery_( config::artUploadPinQuery )
     , ddxOptions_( {
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( discordAppToken_, IDC_EDIT_APP_TOKEN ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( largeImageId_Light_, IDC_EDIT_LARGE_LIGHT_ID ),
@@ -38,9 +33,6 @@ PreferenceTabAdvanced::PreferenceTabAdvanced( PreferenceTabManager* pParent )
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( playingImageId_Dark_, IDC_EDIT_SMALL_PLAYING_DARK_ID ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( pausedImageId_Light_, IDC_EDIT_SMALL_PAUSED_LIGHT_ID ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( pausedImageId_Dark_, IDC_EDIT_SMALL_PAUSED_DARK_ID ),
-          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( enableArtUpload_, IDC_CHECK_UPLOAD_ART ),
-          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( artUploadCmd_, IDC_EDIT_UPLOAD_COMMAND ),
-          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( artUploadPinQuery_, IDC_EDIT_UPLOAD_ART_PIN_QUERY ),
       } )
 {
 }
@@ -100,11 +92,6 @@ void PreferenceTabAdvanced::Reset()
     DoFullDdxToUi();
 }
 
-bool PreferenceTabAdvanced::HasPendingArtworkSettings() const
-{
-    return enableArtUpload_.HasChanged() || artUploadCmd_.HasChanged() || artUploadPinQuery_.HasChanged();
-}
-
 BOOL PreferenceTabAdvanced::OnInitDialog( HWND hwndFocus, LPARAM lParam )
 {
     darkModeHooks_.AddDialogWithControls( m_hWnd );
@@ -114,10 +101,6 @@ BOOL PreferenceTabAdvanced::OnInitDialog( HWND hwndFocus, LPARAM lParam )
         ddxOpt->Ddx().SetHwnd( m_hWnd );
     }
     DoFullDdxToUi();
-
-    helpUrl_.SetHyperLinkExtendedStyle( HLINK_UNDERLINED | HLINK_COMMANDBUTTON );
-    helpUrl_.SetToolTipText( L"View artwork uploader documentation" );
-    helpUrl_.SubclassWindow( GetDlgItem( IDC_LINK_ART_UPLOADER_HELP ) );
 
     return TRUE; // set focus to default control
 }
@@ -134,16 +117,6 @@ void PreferenceTabAdvanced::OnDdxUiChange( UINT uNotifyCode, int nID, CWindow wn
     }
 
     OnChanged();
-
-    if ( nID == IDC_CHECK_UPLOAD_ART )
-    {
-        pParent_->RequestUiChange( IDC_CHECK_FETCH_ALBUM_ART, !enableArtUpload_.GetCurrentValue() );
-    }
-}
-
-void PreferenceTabAdvanced::OnHelpUrlClick( UINT uNotifyCode, int nID, CWindow wndCtl )
-{
-    ShellExecute( nullptr, L"open", L"" DRP_HOMEPAGE "/blob/master/docs/CONFIGURATION.md#album-art", nullptr, nullptr, SW_SHOW );
 }
 
 void PreferenceTabAdvanced::OnLoadCacheClick( UINT uNotifyCode, int nID, CWindow wndCtl )
@@ -229,59 +202,6 @@ void PreferenceTabAdvanced::OnClearCacheClick( UINT uNotifyCode, int nID, CWindo
         LogError( errorMsg );
         popup_message::g_show( errorMsg.c_str(), "Art cache" );
     }
-}
-
-void PreferenceTabAdvanced::OnTestUploaderClick( UINT uNotifyCode, int nID, CWindow wndCtl )
-{
-    const auto& command = artUploadCmd_.GetCurrentValue();
-    if ( command.empty() )
-    {
-        popup_message::g_show( "Enter an upload command first.", "Artwork uploader test" );
-        return;
-    }
-
-    metadb_handle_ptr handle;
-    if ( !playback_control::get()->get_now_playing( handle ) )
-    {
-        popup_message::g_show( "Start playing a track before testing the uploader.", "Artwork uploader test" );
-        return;
-    }
-
-    auto message = std::make_shared<qwr::u8string>();
-    const auto callback = threaded_process_callback_lambda::create(
-        {},
-        [handle, command, message]( threaded_process_status&, abort_callback& ) {
-            try
-            {
-                const auto result = UploadArt( handle, command );
-                if ( !result )
-                {
-                    *message = "No front-cover artwork was available for the current track.";
-                }
-                else if ( !validation::IsSecureImageUrl( *result ) )
-                {
-                    *message = "Uploader output was not a valid HTTPS image URL.";
-                }
-                else
-                {
-                    *message = fmt::format( "Uploader succeeded.\n\n{}", *result );
-                }
-            }
-            catch ( const std::exception& e )
-            {
-                *message = fmt::format( "Uploader failed.\n\n{}", e.what() );
-            }
-        },
-        [message]( fb2k::hwnd_t, bool wasAborted ) {
-            popup_message::g_show(
-                wasAborted ? "Uploader test was cancelled." : message->c_str(),
-                "Artwork uploader test" );
-        } );
-    threaded_process::g_run_modeless(
-        callback,
-        threaded_process::flag_show_delayed,
-        m_hWnd,
-        "Testing artwork uploader" );
 }
 
 void PreferenceTabAdvanced::OnChanged()

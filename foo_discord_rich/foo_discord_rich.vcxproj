@@ -144,6 +144,7 @@
   <ItemGroup>
     <ClCompile Include="artwork\fetcher.cpp" />
     <ClCompile Include="artwork\musicbrainz_fetcher.cpp" />
+    <ClCompile Include="artwork\theaudiodb_fetcher.cpp" />
     <ClCompile Include="artwork\uploader.cpp" />
     <ClCompile Include="component_paths.cpp" />
     <ClCompile Include="discord\discord_integration.cpp" />
@@ -160,13 +161,16 @@
     <ClCompile Include="ui\ui_pref_tab_advanced.cpp" />
     <ClCompile Include="ui\ui_pref_tab_main.cpp" />
     <ClCompile Include="ui\ui_pref_tab_manager.cpp" />
+    <ClCompile Include="ui\ui_pref_tab_providers.cpp" />
     <ClCompile Include="ui\ui_pref_tab_troubleshooting.cpp" />
     <ClCompile Include="utils\logging.cpp" />
+    <ClCompile Include="utils\credential_store.cpp" />
     <ClCompile Include="utils\subprocess_executor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="artwork\fetcher.h" />
     <ClInclude Include="artwork\musicbrainz_fetcher.h" />
+    <ClInclude Include="artwork\theaudiodb_fetcher.h" />
     <ClInclude Include="artwork\uploader.h" />
     <ClInclude Include="component_defines.h" />
     <ClInclude Include="component_guids.h" />
@@ -180,12 +184,15 @@
     <ClInclude Include="ui\ui_pref_tab_advanced.h" />
     <ClInclude Include="ui\ui_pref_tab_main.h" />
     <ClInclude Include="ui\ui_pref_tab_manager.h" />
+    <ClInclude Include="ui\ui_pref_tab_providers.h" />
     <ClInclude Include="ui\ui_pref_tab_troubleshooting.h" />
     <ClInclude Include="utils\json_std_extenders.h" />
     <ClInclude Include="utils\logging.h" />
+    <ClInclude Include="utils\credential_store.h" />
     <ClInclude Include="utils\subprocess_executor.h" />
     <ClInclude Include="utils\validation.h" />
     <ClInclude Include="utils\artwork_policy.h" />
+    <ClInclude Include="utils\theaudiodb.h" />
     <ClInclude Include="utils\artwork_cache_key.h" />
     <ClInclude Include="utils\discord_application_id_migration.h" />
   </ItemGroup>

@@ -25,6 +25,7 @@ extern qwr::fb2k::ConfigUint8Enum<ImageSetting> smallImageSettings;
 extern qwr::fb2k::ConfigUint8Enum<TimeSetting> timeSettings;
 extern qwr::fb2k::ConfigBool enableAlbumArtFetch;
 extern qwr::fb2k::ConfigBool enableArtUpload;
+extern qwr::fb2k::ConfigBool enableTheAudioDbFetch;
 extern qwr::fb2k::ConfigUint8Enum<artwork::DisplayPolicy> artworkDisplayPolicy;
 extern qwr::fb2k::ConfigString artUploadCmd;
 extern qwr::fb2k::ConfigString artUploadPinQuery;

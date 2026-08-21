@@ -6,6 +6,7 @@
 #include <thread>
 #include <unordered_map>
 #include <variant>
+#include <vector>
 
 namespace drp
 {
@@ -13,6 +14,12 @@ namespace drp
 class ArtworkFetcher
 {
 public:
+    enum class ProviderCache
+    {
+        Uploader,
+        TheAudioDb
+    };
+
     enum class Status
     {
         Idle,
@@ -46,7 +53,16 @@ public:
         auto operator<=>( const UploadRequest& other ) const = default;
     };
 
-    using FetchRequest = std::variant<MusicBrainzFetchRequest, UploadRequest>;
+    struct TheAudioDbFetchRequest
+    {
+        qwr::u8string artist;
+        qwr::u8string album;
+        qwr::u8string apiKey;
+
+        auto operator<=>( const TheAudioDbFetchRequest& other ) const = default;
+    };
+
+    using FetchRequest = std::variant<MusicBrainzFetchRequest, UploadRequest, TheAudioDbFetchRequest>;
 
 public:
     static ArtworkFetcher& Get();
@@ -54,13 +70,14 @@ public:
     void Initialize();
     void Finalize();
 
-    std::optional<qwr::u8string> GetArtUrl( const FetchRequest& request );
+    std::optional<qwr::u8string> GetArtUrl( const std::vector<FetchRequest>& requests );
     StatusSnapshot GetStatus() const;
     void CancelPendingRequest();
 
     bool LoadCache( bool throwOnError = false );
     void SaveCache();
     void ClearCache();
+    void InvalidateProviderCache( ProviderCache provider );
     static std::filesystem::path GetCacheFilePath();
 
 private:
@@ -69,6 +86,7 @@ private:
         std::optional<qwr::u8string> artUrl;
         bool cacheable = false;
         qwr::u8string failureMessage;
+        bool rateLimited = false;
     };
 
     struct CacheEntry
@@ -99,6 +117,7 @@ private:
 
     FetchOutcome ProcessFetchRequest( const MusicBrainzFetchRequest& request );
     FetchOutcome ProcessFetchRequest( const UploadRequest& request );
+    FetchOutcome ProcessFetchRequest( const TheAudioDbFetchRequest& request, uint64_t requestGeneration, uint64_t cacheGeneration );
     void SupersedeCurrentRequestLocked();
     void SetWorkerFailure( qwr::u8string logMessage );
     void SetStatusLocked( Status status, qwr::u8string message );
@@ -113,6 +132,7 @@ private:
 
     std::optional<PendingRequest> currentRequestOpt_;
     std::unordered_map<qwr::u8string, CacheEntry> cacheKeyToEntry_;
+    std::unordered_map<qwr::u8string, int64_t> cacheKeyToRetryAfter_;
     uint64_t requestGeneration_ = 0;
     uint64_t cacheGeneration_ = 0;
     bool isWorkerAvailable_ = false;
