@@ -1,7 +1,7 @@
 # Discord Rich Presence Integration
 [![version][version_badge]][releases]
 
-![foo_discord_rich](https://i.imgur.com/OPLvsku.png)
+![foo_discord_rich](https://camo.githubusercontent.com/cb7e637992a7f62bc7ffb9aef0082de03875249f9e39cac8bca724b6d4ce56b6/68747470733a2f2f63646e2e696d6763686573742e636f6d2f66696c65732f346a6463763639766462342e706e67)
 
 This is a component for the [foobar2000](https://www.foobar2000.org) audio player, which displays currently played track data via Discord Rich Presence.
 
@@ -24,7 +24,7 @@ The maintained Discord application's Portal asset mapping is documented in the
 ## Installation
 
 Download the latest `.fb2k-component` package from
-[Releases](https://github.com/Ci303/foo_discord_rich/releases).
+[Releases](https://github.com/noxia-xyz/foo_discord_rich/releases).
 
 - Use the `x64` package for foobar2000 v2 64-bit.
 - Use the `Win32` package for foobar2000 32-bit.
@@ -38,9 +38,10 @@ Original project:
 [TheQwertiest/foo_discord_rich](https://github.com/TheQwertiest/foo_discord_rich).
 Original component implementation by TheQwertiest and contributors.
 
-This fork is maintained by [Ci303](https://github.com/Ci303) because the
-original project is no longer actively maintained. The original MIT license and
-third-party notices are preserved.
+This fork is maintained by [noxia-xyz](https://github.com/noxia-xyz), based on the maintained
+[Ci303/foo_discord_rich](https://github.com/Ci303/foo_discord_rich) codebase.
+
+The original MIT license and third-party notices are preserved.
 
 ## Building
 
@@ -78,6 +79,6 @@ Replace `x64` with `Win32` for the 32-bit component build. Tagged releases are
 built by GitHub Actions for both platforms.
 
 [changelog]: CHANGELOG.md
-[version_badge]: https://img.shields.io/github/release/Ci303/foo_discord_rich.svg
-[releases]: https://github.com/Ci303/foo_discord_rich/releases
+[version_badge]: https://img.shields.io/github/release/noxia-xyz/foo_discord_rich.svg
+[releases]: https://github.com/noxia-xyz/foo_discord_rich/releases
 
