@@ -11,6 +11,7 @@
 
 #include <qwr/algorithm.h>
 
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <mutex>
@@ -93,7 +94,30 @@ std::optional<drp::ArtworkFetcher::TheAudioDbFetchRequest> CreateTheAudioDbReque
         return std::nullopt;
     }
 
-    const auto apiKey = drp::credentials::ReadTheAudioDbApiKey();
+    static std::atomic_bool hasLoggedCredentialReadFailure = false;
+    std::optional<qwr::u8string> apiKey;
+    try
+    {
+        apiKey = drp::credentials::ReadTheAudioDbApiKey();
+        hasLoggedCredentialReadFailure.store( false );
+    }
+    catch ( const std::exception& e )
+    {
+        if ( !hasLoggedCredentialReadFailure.exchange( true ) )
+        {
+            drp::LogError( fmt::format( "Skipping TheAudioDB because its stored API key could not be read: {}", e.what() ) );
+        }
+        return std::nullopt;
+    }
+    catch ( ... )
+    {
+        if ( !hasLoggedCredentialReadFailure.exchange( true ) )
+        {
+            drp::LogError( "Skipping TheAudioDB because its stored API key could not be read" );
+        }
+        return std::nullopt;
+    }
+
     if ( !apiKey )
     {
         return std::nullopt;

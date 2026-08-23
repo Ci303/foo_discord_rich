@@ -177,10 +177,11 @@ qwr::u8string SaveArtToFile( const album_art_data_ptr& pArtData, abort_callback&
 namespace drp
 {
 
-std::optional<qwr::u8string> UploadArt( const metadb_handle_ptr& handle, const qwr::u8string& uploadCommand )
+std::optional<qwr::u8string> UploadArt(
+    const metadb_handle_ptr& handle,
+    const qwr::u8string& uploadCommand,
+    abort_callback& aborter )
 {
-    auto& aborter = qwr::GlobalAbortCallback::GetInstance();
-
     const auto artDataOpt = GetArtData( handle, aborter );
     if ( !artDataOpt )
     {
@@ -222,7 +223,7 @@ std::optional<qwr::u8string> UploadArt( const metadb_handle_ptr& handle, const q
 
         uploader.Start();
         uploader.WriteData( artPath );
-        const auto exitCode = uploader.WaitUntilCompleted( kMaxWaitTime );
+        const auto exitCode = uploader.WaitUntilCompleted( kMaxWaitTime, aborter );
         const auto outputOpt = uploader.GetOutput();
         const auto errorOpt = uploader.GetErrorOutput();
         qwr::QwrException::ExpectTrue(
@@ -245,6 +246,11 @@ std::optional<qwr::u8string> UploadArt( const metadb_handle_ptr& handle, const q
     }
 
     return artUrl;
+}
+
+std::optional<qwr::u8string> UploadArt( const metadb_handle_ptr& handle, const qwr::u8string& uploadCommand )
+{
+    return UploadArt( handle, uploadCommand, qwr::GlobalAbortCallback::GetInstance() );
 }
 
 } // namespace drp

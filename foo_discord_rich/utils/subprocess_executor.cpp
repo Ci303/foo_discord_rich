@@ -28,9 +28,14 @@ SubprocessExecutor::SubprocessExecutor( const qwr::u8string& command )
     }
     catch ( ... )
     {
-        TerminateProcess();
+        TerminateProcessTree();
         throw;
     }
+}
+
+SubprocessExecutor::~SubprocessExecutor()
+{
+    TerminateProcessTree();
 }
 
 void SubprocessExecutor::Start()
@@ -70,19 +75,24 @@ void SubprocessExecutor::WriteData( const qwr::u8string& data )
 
 DWORD SubprocessExecutor::WaitUntilCompleted( const std::chrono::seconds& timeout )
 {
+    return WaitUntilCompleted( timeout, qwr::GlobalAbortCallback::GetInstance() );
+}
+
+DWORD SubprocessExecutor::WaitUntilCompleted( const std::chrono::seconds& timeout, abort_callback& aborter )
+{
     qwr::QwrException::ExpectTrue( handles_.hProcess.get(), "SubprocessExecutor error: null hProcess" );
     qwr::QwrException::ExpectTrue( handles_.hThread.get(), "SubprocessExecutor error: null hThread" );
     qwr::QwrException::ExpectTrue( handles_.hStdinRead.get(), "SubprocessExecutor error: null hStdinRead" );
     qwr::QwrException::ExpectTrue( handles_.hStdoutWrite.get(), "SubprocessExecutor error: null hStdoutWrite" );
     qwr::QwrException::ExpectTrue( handles_.hStderrWrite.get(), "SubprocessExecutor error: null hStderrWrite" );
 
-    qwr::TimedAbortCallback aborter{ "", timeout };
+    qwr::TimedAbortCallback timeoutAborter{ "", timeout };
 
     handles_.hStdoutWrite.reset();
     handles_.hStderrWrite.reset();
     handles_.hStdinRead.reset();
 
-    std::array handlesToWait{ handles_.hProcess.get(), aborter.get_handle() };
+    std::array handlesToWait{ handles_.hProcess.get(), aborter.get_handle(), timeoutAborter.get_handle() };
     bool isProcessCompleted = false;
     while ( !isProcessCompleted )
     {
@@ -101,6 +111,10 @@ DWORD SubprocessExecutor::WaitUntilCompleted( const std::chrono::seconds& timeou
         else if ( waitResult == WAIT_OBJECT_0 + 1 )
         {
             aborter.check();
+        }
+        else if ( waitResult == WAIT_OBJECT_0 + 2 )
+        {
+            timeoutAborter.check();
         }
         else
         {
@@ -224,11 +238,18 @@ void SubprocessExecutor::CreateJob()
     qwr::error::CheckWinApi( bRet, "AssignProcessToJobObject" );
 }
 
-void SubprocessExecutor::TerminateProcess() noexcept
+void SubprocessExecutor::TerminateProcessTree() noexcept
 {
     if ( handles_.hProcess )
     {
-        ::TerminateProcess( handles_.hProcess.get(), 1 );
+        if ( handles_.hJob )
+        {
+            ::TerminateJobObject( handles_.hJob.get(), 1 );
+        }
+        else
+        {
+            ::TerminateProcess( handles_.hProcess.get(), 1 );
+        }
     }
 }
 

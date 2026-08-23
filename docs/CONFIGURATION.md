@@ -233,9 +233,11 @@ artist and album metadata and accepts only an exact normalised album match.
 
 The component never writes the key into its artwork cache or diagnostic web
 request URL. Use **Clear stored key** to remove it; TheAudioDB remains
-unavailable until a replacement is saved. After an HTTP 429 response, TheAudioDB is skipped for all tracks
-using that key for one minute; it becomes eligible again on the next presence
-refresh after that cooldown.
+unchanged until you select **Apply**; cancelling or resetting Preferences keeps
+the stored credential. After it is removed, TheAudioDB remains unavailable
+until a replacement is saved. After an HTTP 429 response, TheAudioDB is
+skipped for all tracks using that key for one minute; it becomes eligible again
+on the next presence refresh after that cooldown.
 
 ### Local and embedded artwork
 
@@ -255,7 +257,12 @@ Embedded artwork is copied to a unique temporary file for the command and
 removed afterwards. The cache pin query identifies when an upload can be
 reused; its default is `%artist%|%album%`. Use **Test** against the current
 track before applying the setting. Upload commands are executable programs and
-must only be configured from a trusted source.
+must only be configured from a trusted source. Never put an API key, access
+token, password, or other secret in the upload command: the command is stored
+as plaintext configuration and may also be visible in the spawned process's
+command line. If the uploader needs credentials, have the trusted uploader read
+them from its own protected credential store or other access-controlled
+configuration instead.
 
 ### Provider requirements and exclusions
 

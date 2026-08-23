@@ -42,14 +42,14 @@ third-party notices are preserved.
 
 - Visual Studio 2022 with the MSVC v145 C++ toolset, or Visual Studio 2026 with the MSVC v145 C++ toolset.
 - Windows 10 SDK.
-- Python 3.
+- Python 3.10 or newer.
 - NuGet package restore support for Visual Studio/MSBuild.
 
 ### Setup
 
 ```powershell
-py -3 -m pip install semver
-py -u scripts\setup.py
+python -m pip install semver
+python -u scripts\setup.py
 nuget restore workspaces\foo_discord_rich.sln
 ```
 
@@ -60,7 +60,10 @@ nuget restore workspaces\foo_discord_rich.sln
 ```powershell
 .\scripts\build.ps1 -Configuration Release -Platform x64
 ```
-`build.ps1` runs MSBuild with the explicit `v145` toolset and `14.51.36231` tool binaries, then packages the artifact.
+`build.ps1` runs MSBuild with the explicit `v145` toolset and `14.51.36231`
+tool binaries, then discovers a working Python 3.10 or newer interpreter and
+packages the artifact. If Python is not on `PATH`, pass its full path with
+`-PythonExecutable`.
 
 To deploy directly into a local foobar2000 x64 user-components directory after build:
 

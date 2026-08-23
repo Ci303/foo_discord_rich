@@ -1,5 +1,7 @@
 #pragma once
 
+#include <foobar2000/SDK/abort_callback.h>
+
 namespace drp
 {
 
@@ -8,6 +10,7 @@ class SubprocessExecutor
 public:
     /// @throw qwr::qwrException
     SubprocessExecutor( const qwr::u8string& command );
+    ~SubprocessExecutor();
 
 public:
     /// @throw qwr::qwrException
@@ -19,6 +22,10 @@ public:
     /// @throw qwr::qwrException
     /// @throw exception_aborted
     DWORD WaitUntilCompleted( const std::chrono::seconds& timeout );
+
+    /// @throw qwr::qwrException
+    /// @throw exception_aborted
+    DWORD WaitUntilCompleted( const std::chrono::seconds& timeout, abort_callback& aborter );
 
     /// @throw qwr::qwrException
     std::optional<qwr::u8string> GetOutput();
@@ -37,7 +44,7 @@ private:
     /// @throw qwr::qwrException
     void CreateJob();
 
-    void TerminateProcess() noexcept;
+    void TerminateProcessTree() noexcept;
 
     /// @throw qwr::qwrException
     static std::optional<qwr::u8string> ReadDataFromPipe( HANDLE hPipe );

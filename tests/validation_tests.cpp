@@ -12,6 +12,7 @@ int main()
     using drp::artwork::BuildMusicBrainzCacheKey;
     using drp::artwork::BuildTheAudioDbCacheKey;
     using drp::artwork::BuildUploaderCacheKey;
+    using drp::artwork::BoundedTheAudioDbKeySet;
     using drp::artwork::CanCommitCacheResult;
     using drp::artwork::CanPublishRequestResult;
     using drp::artwork::IsEligibleTheAudioDbSupporterKey;
@@ -88,6 +89,20 @@ int main()
     assert( !IsEligibleTheAudioDbSupporterKey( "123" ) );
     assert( !IsEligibleTheAudioDbSupporterKey( "bad/key" ) );
     assert( IsEligibleTheAudioDbSupporterKey( "premium_Key-42" ) );
+    BoundedTheAudioDbKeySet rejectedKeys{ 2 };
+    rejectedKeys.Insert( "first" );
+    rejectedKeys.Insert( "second" );
+    rejectedKeys.Insert( "second" );
+    assert( rejectedKeys.Size() == 2 );
+    assert( rejectedKeys.Contains( "first" ) );
+    rejectedKeys.Insert( "third" );
+    assert( rejectedKeys.Size() == 2 );
+    assert( !rejectedKeys.Contains( "first" ) );
+    assert( rejectedKeys.Contains( "second" ) );
+    assert( rejectedKeys.Contains( "third" ) );
+    assert( rejectedKeys.Erase( "second" ) );
+    assert( !rejectedKeys.Erase( "second" ) );
+    assert( rejectedKeys.Size() == 1 );
     assert( NormaliseTheAudioDbLookupText( "  ColdPlay\r\n" ) == "coldplay" );
     assert( NormaliseTheAudioDbLookupText( "Parachutes" ) == "parachutes" );
     assert( NormaliseTheAudioDbLookupText( " \t " ).empty() );

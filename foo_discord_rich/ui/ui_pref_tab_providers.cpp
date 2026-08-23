@@ -53,11 +53,12 @@ PreferenceTabProviders::PreferenceTabProviders( PreferenceTabManager* pParent )
 
 PreferenceTabProviders::~PreferenceTabProviders()
 {
+    theAudioDbTestState_->dialogHwnd.store( nullptr );
     for ( auto& ddxOpt: ddxOptions_ )
     {
         ddxOpt->Option().Revert();
     }
-    ClearPendingTheAudioDbApiKey();
+    CancelPendingTheAudioDbCredentialChange();
 }
 
 HWND PreferenceTabProviders::CreateTab( HWND hParent )
@@ -87,27 +88,36 @@ t_uint32 PreferenceTabProviders::GetState()
                                                     []( const auto& ddxOpt ) { return ddxOpt->Option().HasChanged(); } );
     return preferences_state::resettable
            | preferences_state::dark_mode_supported
-           | ( hasChanged || !pendingTheAudioDbApiKey_.empty() ? preferences_state::changed : 0 );
+           | ( hasChanged || !pendingTheAudioDbApiKey_.empty() || isTheAudioDbKeyDeletionPending_ ? preferences_state::changed : 0 );
 }
 
 void PreferenceTabProviders::Apply()
 {
     const bool theAudioDbKeyChanged = !pendingTheAudioDbApiKey_.empty();
+    const bool theAudioDbKeyDeletionRequested = isTheAudioDbKeyDeletionPending_ && !theAudioDbKeyChanged;
+    const bool theAudioDbEnableRequested = enableTheAudioDbFetch_.HasChanged()
+                                           && enableTheAudioDbFetch_.GetCurrentValue();
+    const bool theAudioDbCredentialNeedsValidation = theAudioDbKeyChanged || theAudioDbEnableRequested;
     const bool uploaderCommandChanged = artUploadCmd_.HasChanged();
     std::optional<qwr::u8string> apiKey;
-    try
+    if ( theAudioDbCredentialNeedsValidation )
     {
-        apiKey = GetEffectiveTheAudioDbApiKey();
-    }
-    catch ( const std::exception& e )
-    {
-        popup_message::g_show( e.what(), "TheAudioDB API key" );
-        return;
+        try
+        {
+            apiKey = GetEffectiveTheAudioDbApiKey();
+        }
+        catch ( const std::exception& e )
+        {
+            popup_message::g_show( e.what(), "TheAudioDB API key" );
+            return;
+        }
     }
     const auto uploaderCommand = artUploadCmd_.GetCurrentValue();
     const auto uploaderPinQuery = artUploadPinQuery_.GetCurrentValue();
-    const bool theAudioDbSettingsInvalid = ( enableTheAudioDbFetch_.GetCurrentValue() && !apiKey )
-                                                || ( apiKey && !artwork::IsEligibleTheAudioDbSupporterKey( *apiKey ) );
+    const bool theAudioDbSettingsInvalid = ( theAudioDbKeyDeletionRequested && enableTheAudioDbFetch_.GetCurrentValue() )
+                                           || ( theAudioDbCredentialNeedsValidation
+                                                && ( ( enableTheAudioDbFetch_.GetCurrentValue() && !apiKey )
+                                                     || ( apiKey && !artwork::IsEligibleTheAudioDbSupporterKey( *apiKey ) ) ) );
     const bool uploaderSettingsInvalid = enableArtUpload_.GetCurrentValue()
                                          && ( uploaderCommand.empty() || uploaderPinQuery.empty() );
     if ( theAudioDbSettingsInvalid )
@@ -116,7 +126,7 @@ void PreferenceTabProviders::Apply()
             "TheAudioDB settings were not saved. Enter your own supporter API key containing only letters, numbers, hyphens, and underscores. The shared development key 123 is not accepted.",
             "TheAudioDB API key" );
         enableTheAudioDbFetch_.Revert();
-        ClearPendingTheAudioDbApiKey();
+        CancelPendingTheAudioDbCredentialChange();
     }
     if ( uploaderSettingsInvalid )
     {
@@ -133,8 +143,24 @@ void PreferenceTabProviders::Apply()
         try
         {
             credentials::WriteTheAudioDbApiKey( *apiKey );
+            theaudiodb::ResetRejectedApiKeyState( *apiKey );
             hasStoredTheAudioDbApiKey_ = true;
             ClearPendingTheAudioDbApiKey();
+            isTheAudioDbKeyDeletionPending_ = false;
+        }
+        catch ( const std::exception& e )
+        {
+            popup_message::g_show( e.what(), "TheAudioDB API key" );
+            return;
+        }
+    }
+    else if ( theAudioDbKeyDeletionRequested && !theAudioDbSettingsInvalid )
+    {
+        try
+        {
+            credentials::ClearTheAudioDbApiKey();
+            hasStoredTheAudioDbApiKey_ = false;
+            isTheAudioDbKeyDeletionPending_ = false;
         }
         catch ( const std::exception& e )
         {
@@ -148,7 +174,7 @@ void PreferenceTabProviders::Apply()
         ddxOpt->Option().Apply();
     }
 
-    if ( theAudioDbKeyChanged && !theAudioDbSettingsInvalid )
+    if ( ( theAudioDbKeyChanged || theAudioDbKeyDeletionRequested ) && !theAudioDbSettingsInvalid )
     {
         ArtworkFetcher::Get().InvalidateProviderCache( ArtworkFetcher::ProviderCache::TheAudioDb );
     }
@@ -170,14 +196,14 @@ void PreferenceTabProviders::Reset()
     {
         ddxOpt->Option().ResetToDefault();
     }
-    ClearPendingTheAudioDbApiKey();
+    CancelPendingTheAudioDbCredentialChange();
     DoFullDdxToUi();
     UpdateControlState();
 }
 
 bool PreferenceTabProviders::HasPendingArtworkSettings() const
 {
-    return !pendingTheAudioDbApiKey_.empty() || std::ranges::any_of( ddxOptions_, []( const auto& ddxOpt ) {
+    return !pendingTheAudioDbApiKey_.empty() || isTheAudioDbKeyDeletionPending_ || std::ranges::any_of( ddxOptions_, []( const auto& ddxOpt ) {
         return ddxOpt->Option().HasChanged();
     } );
 }
@@ -185,6 +211,7 @@ bool PreferenceTabProviders::HasPendingArtworkSettings() const
 BOOL PreferenceTabProviders::OnInitDialog( HWND hwndFocus, LPARAM lParam )
 {
     darkModeHooks_.AddDialogWithControls( m_hWnd );
+    theAudioDbTestState_->dialogHwnd.store( m_hWnd );
 
     for ( auto& ddxOpt: ddxOptions_ )
     {
@@ -200,19 +227,44 @@ BOOL PreferenceTabProviders::OnInitDialog( HWND hwndFocus, LPARAM lParam )
         popup_message::g_show( e.what(), "TheAudioDB API key" );
         hasStoredTheAudioDbApiKey_ = false;
     }
-    CEdit( GetDlgItem( IDC_EDIT_THEAUDIODB_API_KEY ) ).LimitText( 128 );
-    CEdit( GetDlgItem( IDC_EDIT_THEAUDIODB_API_KEY ) ).SetPasswordChar( L'\x25CF' );
+    auto apiKeyEdit = CEdit( GetDlgItem( IDC_EDIT_THEAUDIODB_API_KEY ) );
+    apiKeyEdit.LimitText( 128 );
+    apiKeyEdit.SetPasswordChar( L'\x25CF' );
+    CButton( GetDlgItem( IDC_CHECK_SHOW_THEAUDIODB_KEY ) ).SetCheck( BST_UNCHECKED );
+    if ( !pendingTheAudioDbApiKey_.empty() )
+    {
+        auto pendingApiKey = qwr::unicode::ToWide( pendingTheAudioDbApiKey_ );
+        isRestoringTheAudioDbCredentialUi_ = true;
+        apiKeyEdit.SetWindowTextW( pendingApiKey.c_str() );
+        isRestoringTheAudioDbCredentialUi_ = false;
+        SecureZeroMemory( pendingApiKey.data(), pendingApiKey.size() * sizeof( wchar_t ) );
+    }
     UpdateTheAudioDbCredentialUi();
     UpdateControlState();
 
     return TRUE;
 }
 
+void PreferenceTabProviders::OnDestroy()
+{
+    auto expectedHwnd = m_hWnd;
+    theAudioDbTestState_->dialogHwnd.compare_exchange_strong( expectedHwnd, nullptr );
+}
+
 void PreferenceTabProviders::OnDdxUiChange( UINT uNotifyCode, int nID, CWindow wndCtl )
 {
     if ( nID == IDC_EDIT_THEAUDIODB_API_KEY )
     {
+        if ( isRestoringTheAudioDbCredentialUi_ )
+        {
+            return;
+        }
         pendingTheAudioDbApiKey_ = qwr::pfc_x::uGetDlgItemText<char>( m_hWnd, nID );
+        if ( !pendingTheAudioDbApiKey_.empty() && isTheAudioDbKeyDeletionPending_ )
+        {
+            isTheAudioDbKeyDeletionPending_ = false;
+            UpdateTheAudioDbCredentialUi();
+        }
         UpdateControlState();
         OnChanged();
         return;
@@ -243,7 +295,7 @@ void PreferenceTabProviders::OnShowApiKeyClick( UINT uNotifyCode, int nID, CWind
 
 void PreferenceTabProviders::OnTestTheAudioDbClick( UINT uNotifyCode, int nID, CWindow wndCtl )
 {
-    if ( isTheAudioDbTestRunning_ )
+    if ( theAudioDbTestState_->isRunning.load() )
     {
         return;
     }
@@ -278,9 +330,7 @@ void PreferenceTabProviders::OnTestTheAudioDbClick( UINT uNotifyCode, int nID, C
         return;
     }
 
-    isTheAudioDbTestRunning_ = true;
-    UpdateControlState();
-    const auto dialogHwnd = m_hWnd;
+    const auto testState = theAudioDbTestState_;
     auto message = std::make_shared<qwr::u8string>();
     const auto callback = threaded_process_callback_lambda::create(
         {},
@@ -310,17 +360,22 @@ void PreferenceTabProviders::OnTestTheAudioDbClick( UINT uNotifyCode, int nID, C
                 *message = fmt::format( "TheAudioDB test failed.\n\n{}", e.what() );
             }
         },
-        [message, dialogHwnd]( fb2k::hwnd_t, bool wasAborted ) {
+        [message, testState]( fb2k::hwnd_t, bool wasAborted ) {
+            testState->isRunning.store( false );
             popup_message::g_show(
                 wasAborted ? "TheAudioDB test was cancelled." : message->c_str(),
                 "TheAudioDB test" );
-            if ( ::IsWindow( dialogHwnd ) )
+            const auto dialogHwnd = testState->dialogHwnd.load();
+            if ( dialogHwnd && ::IsWindow( dialogHwnd ) )
             {
                 ::PostMessageW( dialogHwnd, PreferenceTabProviders::kTheAudioDbTestFinishedMessage, 0, 0 );
             }
         } );
     try
     {
+        theaudiodb::ResetRejectedApiKeyState( *apiKey );
+        testState->isRunning.store( true );
+        UpdateControlState();
         threaded_process::g_run_modeless(
             callback,
             threaded_process::flag_show_delayed,
@@ -329,13 +384,13 @@ void PreferenceTabProviders::OnTestTheAudioDbClick( UINT uNotifyCode, int nID, C
     }
     catch ( const std::exception& e )
     {
-        isTheAudioDbTestRunning_ = false;
+        theAudioDbTestState_->isRunning.store( false );
         UpdateControlState();
         popup_message::g_show( fmt::format( "Failed to start TheAudioDB test.\n\n{}", e.what() ).c_str(), "TheAudioDB test" );
     }
     catch ( ... )
     {
-        isTheAudioDbTestRunning_ = false;
+        theAudioDbTestState_->isRunning.store( false );
         UpdateControlState();
         popup_message::g_show( "Failed to start TheAudioDB test.", "TheAudioDB test" );
     }
@@ -345,7 +400,7 @@ void PreferenceTabProviders::OnClearTheAudioDbKeyClick( UINT uNotifyCode, int nI
 {
     if ( ::MessageBoxW(
              m_hWnd,
-             L"Clear the stored TheAudioDB API key now? The provider will also be disabled when you apply these settings.",
+             L"Clear the stored TheAudioDB API key when these settings are applied? The provider will also be disabled.",
              L"Clear TheAudioDB API key",
              MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2 )
          != IDYES )
@@ -353,22 +408,12 @@ void PreferenceTabProviders::OnClearTheAudioDbKeyClick( UINT uNotifyCode, int nI
         return;
     }
 
-    try
-    {
-        credentials::ClearTheAudioDbApiKey();
-        hasStoredTheAudioDbApiKey_ = false;
-        enableTheAudioDbFetch_ = false;
-        ClearPendingTheAudioDbApiKey();
-        ArtworkFetcher::Get().InvalidateProviderCache( ArtworkFetcher::ProviderCache::TheAudioDb );
-        DoFullDdxToUi();
-        UpdateTheAudioDbCredentialUi();
-        UpdateControlState();
-        OnChanged();
-    }
-    catch ( const std::exception& e )
-    {
-        popup_message::g_show( e.what(), "TheAudioDB API key" );
-    }
+    isTheAudioDbKeyDeletionPending_ = true;
+    enableTheAudioDbFetch_ = false;
+    ClearPendingTheAudioDbApiKey();
+    DoFullDdxToUi();
+    UpdateControlState();
+    OnChanged();
 }
 
 void PreferenceTabProviders::OnTheAudioDbHelpClick( UINT uNotifyCode, int nID, CWindow wndCtl )
@@ -400,10 +445,10 @@ void PreferenceTabProviders::OnTestUploaderClick( UINT uNotifyCode, int nID, CWi
     auto message = std::make_shared<qwr::u8string>();
     const auto callback = threaded_process_callback_lambda::create(
         {},
-        [handle, command, message]( threaded_process_status&, abort_callback& ) {
+        [handle, command, message]( threaded_process_status&, abort_callback& aborter ) {
             try
             {
-                const auto result = UploadArt( handle, command );
+                const auto result = UploadArt( handle, command, aborter );
                 if ( !result )
                 {
                     *message = "No local or embedded front-cover artwork was available for the current track.";
@@ -416,6 +461,10 @@ void PreferenceTabProviders::OnTestUploaderClick( UINT uNotifyCode, int nID, CWi
                 {
                     *message = fmt::format( "Uploader succeeded.\n\n{}", *result );
                 }
+            }
+            catch ( const exception_aborted& )
+            {
+                throw;
             }
             catch ( const std::exception& e )
             {
@@ -452,7 +501,7 @@ void PreferenceTabProviders::OnRequirementsClick( UINT uNotifyCode, int nID, CWi
 
 LRESULT PreferenceTabProviders::OnTheAudioDbTestFinished( UINT message, WPARAM wParam, LPARAM lParam, BOOL& wasHandled )
 {
-    isTheAudioDbTestRunning_ = false;
+    theAudioDbTestState_->isRunning.store( false );
     UpdateControlState();
     return 0;
 }
@@ -481,6 +530,10 @@ std::optional<qwr::u8string> PreferenceTabProviders::GetEffectiveTheAudioDbApiKe
     {
         return pendingTheAudioDbApiKey_;
     }
+    if ( isTheAudioDbKeyDeletionPending_ )
+    {
+        return std::nullopt;
+    }
     return credentials::ReadTheAudioDbApiKey();
 }
 
@@ -499,15 +552,22 @@ void PreferenceTabProviders::ClearPendingTheAudioDbApiKey()
     }
 }
 
+void PreferenceTabProviders::CancelPendingTheAudioDbCredentialChange()
+{
+    ClearPendingTheAudioDbApiKey();
+    isTheAudioDbKeyDeletionPending_ = false;
+}
+
 void PreferenceTabProviders::UpdateTheAudioDbCredentialUi()
 {
     if ( !m_hWnd )
     {
         return;
     }
-    const auto cueText = hasStoredTheAudioDbApiKey_
-                             ? L"Stored - type to replace"
-                             : L"Enter supporter API key";
+    const auto cueText = isTheAudioDbKeyDeletionPending_
+                             ? L"Will be cleared on Apply"
+                         : hasStoredTheAudioDbApiKey_ ? L"Stored - type to replace"
+                                                     : L"Enter supporter API key";
     GetDlgItem( IDC_EDIT_THEAUDIODB_API_KEY ).SendMessageW( EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>( cueText ) );
 }
 
@@ -519,10 +579,13 @@ void PreferenceTabProviders::UpdateControlState()
     }
 
     const bool enableTheAudioDbControls = enableTheAudioDbFetch_.GetCurrentValue();
-    GetDlgItem( IDC_EDIT_THEAUDIODB_API_KEY ).EnableWindow( enableTheAudioDbControls && !isTheAudioDbTestRunning_ );
-    GetDlgItem( IDC_CHECK_SHOW_THEAUDIODB_KEY ).EnableWindow( enableTheAudioDbControls && !pendingTheAudioDbApiKey_.empty() && !isTheAudioDbTestRunning_ );
-    GetDlgItem( IDC_BUTTON_TEST_THEAUDIODB ).EnableWindow( enableTheAudioDbControls && ( hasStoredTheAudioDbApiKey_ || !pendingTheAudioDbApiKey_.empty() ) && !isTheAudioDbTestRunning_ );
-    GetDlgItem( IDC_BUTTON_CLEAR_THEAUDIODB_KEY ).EnableWindow( hasStoredTheAudioDbApiKey_ && !isTheAudioDbTestRunning_ );
+    const bool isTheAudioDbTestRunning = theAudioDbTestState_->isRunning.load();
+    GetDlgItem( IDC_EDIT_THEAUDIODB_API_KEY ).EnableWindow( enableTheAudioDbControls && !isTheAudioDbTestRunning );
+    GetDlgItem( IDC_CHECK_SHOW_THEAUDIODB_KEY ).EnableWindow( enableTheAudioDbControls && !pendingTheAudioDbApiKey_.empty() && !isTheAudioDbTestRunning );
+    const bool hasEffectiveTheAudioDbApiKey = !pendingTheAudioDbApiKey_.empty()
+                                               || ( hasStoredTheAudioDbApiKey_ && !isTheAudioDbKeyDeletionPending_ );
+    GetDlgItem( IDC_BUTTON_TEST_THEAUDIODB ).EnableWindow( enableTheAudioDbControls && hasEffectiveTheAudioDbApiKey && !isTheAudioDbTestRunning );
+    GetDlgItem( IDC_BUTTON_CLEAR_THEAUDIODB_KEY ).EnableWindow( hasStoredTheAudioDbApiKey_ && !isTheAudioDbKeyDeletionPending_ && !isTheAudioDbTestRunning );
 
     const bool enableUploaderControls = enableArtUpload_.GetCurrentValue();
     GetDlgItem( IDC_EDIT_UPLOAD_COMMAND ).EnableWindow( enableUploaderControls );

@@ -2,6 +2,7 @@
 
 #### Table of Contents
 - [Unreleased](#unreleased)
+- [2.0.3-ci303.7](#203-ci3037---2026-08-23)
 - [2.0.3-ci303.6](#203-ci3036---2026-08-11)
 - [2.0.3-ci303.5](#203-ci3035---2026-08-08)
 - [2.0.3-ci303.2](#203-ci3032---2026-05-04)
@@ -16,16 +17,26 @@ ___
 
 ## [Unreleased][]
 
+## [2.0.3-ci303.7][] - 2026-08-23
+
 ### Added
-- Added a Providers preference tab for artwork source requirements, local/embedded artwork upload settings, and masked TheAudioDB credentials.
-- Added TheAudioDB as an optional artwork fallback using a user-supplied supporter key.
+- Added a Providers preference tab for artwork source requirements, local or embedded artwork upload settings, and masked TheAudioDB credentials.
+- Added TheAudioDB as an optional artwork fallback using a user-supplied supporter key stored in Windows Credential Manager.
 
 ### Changed
 - Moved provider-specific artwork controls out of Main and Advanced without changing their persisted settings.
-- Changed artwork resolution to try local artwork, MusicBrainz / Cover Art Archive, and TheAudioDB in order, while keeping cache results provider-specific.
+- Changed artwork resolution to try local or embedded artwork through the configured uploader, MusicBrainz / Cover Art Archive, and TheAudioDB in order, while keeping cache results and live status provider-specific.
+- Made rejected TheAudioDB credentials suppress further automatic requests until the credential is replaced or explicitly tested again.
+
+### Fixed
+- Prevented Windows Credential Manager read failures from escaping the artwork worker and disrupting presence updates.
+- Made clearing a stored TheAudioDB key follow the Preferences Apply/Reset lifecycle instead of deleting it before the settings change was applied.
+- Preserved pending TheAudioDB key edits and test completion state when switching between preference tabs.
+- Made custom-uploader tests respond to cancellation and clean up their child process.
+- Made the local build helper discover and validate an available Python 3.10 or newer interpreter instead of relying solely on the Windows `py` launcher.
 
 ### Security
-- Redacted TheAudioDB v1 keys from URL-path logging and kept provider credentials out of the artwork cache.
+- Redacted TheAudioDB v1 keys from URL-path logging, kept provider credentials out of the artwork cache, and documented that secrets must not be placed in custom-uploader command lines.
 
 ## [2.0.3-ci303.6][] - 2026-08-11
 
@@ -169,7 +180,8 @@ ___
 ## [1.0.0][] - 2018-11-06
 Initial release.
 
-[unreleased]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.6...HEAD
+[unreleased]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.7...HEAD
+[2.0.3-ci303.7]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.6...v2.0.3-ci303.7
 [2.0.3-ci303.6]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.5...v2.0.3-ci303.6
 [2.0.3-ci303.5]: https://github.com/Ci303/foo_discord_rich/compare/v2.0.3-ci303.2...v2.0.3-ci303.5
 [2.0.3-ci303.2]: https://github.com/Ci303/foo_discord_rich/releases/tag/v2.0.3-ci303.2

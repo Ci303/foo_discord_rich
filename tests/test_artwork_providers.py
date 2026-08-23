@@ -67,6 +67,38 @@ class ArtworkProviderIntegrationTests(unittest.TestCase):
         self.assertNotIn("response.url", source)
         self.assertNotIn("resp.url", source)
 
+    def test_theaudiodb_rejected_key_state_is_global_and_resettable(self):
+        provider = (
+            ROOT / "foo_discord_rich" / "artwork" / "theaudiodb_fetcher.cpp"
+        ).read_text(encoding="utf-8")
+        fetcher = (
+            ROOT / "foo_discord_rich" / "artwork" / "fetcher.cpp"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("MarkApiKeyRejected( apiKey );", provider)
+        self.assertGreaterEqual(provider.count("IsApiKeyRejected( apiKey )"), 2)
+        self.assertIn("void ResetRejectedApiKeyState", provider)
+        reset_start = provider.index("void ResetRejectedApiKeyState")
+        reset_end = provider.index("std::optional<qwr::u8string> FetchArt", reset_start)
+        reset_function = provider[reset_start:reset_end]
+        self.assertIn("rejectedApiKeys.Erase", reset_function)
+        self.assertNotIn("retryAfterByApiKey.erase", reset_function)
+        self.assertIn("theaudiodb::IsApiKeyRejected", fetcher)
+        self.assertIn("AuthenticationRejectedException", fetcher)
+
+    def test_credential_read_failure_is_contained_by_presence_path(self):
+        source = (
+            ROOT / "foo_discord_rich" / "discord" / "presence_data.cpp"
+        ).read_text(encoding="utf-8")
+        function_start = source.index("CreateTheAudioDbRequest")
+        function_end = source.index("ResolveTrackArtUrl", function_start)
+        function = source[function_start:function_end]
+
+        self.assertIn("ReadTheAudioDbApiKey", function)
+        self.assertIn("catch ( const std::exception& e )", function)
+        self.assertIn("catch ( ... )", function)
+        self.assertIn("Skipping TheAudioDB", function)
+
     def test_providers_tab_is_registered(self):
         manager = (
             ROOT / "foo_discord_rich" / "ui" / "ui_pref_tab_manager.cpp"

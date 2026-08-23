@@ -1,8 +1,8 @@
-# Discord Rich Presence Integration v2.0.3-ci303.6
+# Discord Rich Presence Integration v2.0.3-ci303.7
 
-This release adds explicit album-artwork display policies, live artwork
-resolution status, and focused Discord activity-conflict guidance in
-Preferences, while preserving artwork-first behaviour as the default.
+This release makes album-artwork sources configurable and adds TheAudioDB as
+an optional final fallback, while preserving the existing MusicBrainz / Cover
+Art Archive and custom-uploader workflows.
 
 This is a maintained fork release of Discord Rich Presence Integration for
 foobar2000.
@@ -16,32 +16,42 @@ TheQwertiest
 Fork maintainer:
 Ci303
 
-The original MIT license and third-party notices are preserved.
+The original MIT licence and third-party notices are preserved.
 
 ## What's Changed
 
-- Added explicit album-artwork behaviour choices: prefer artwork with a
-  configured large-image fallback, use the configured large image without
-  artwork requests, or show artwork without a fallback.
-- Added live artwork status and clear pending-versus-applied feedback in
-  Preferences.
-- Added in-component guidance for Discord recognised-application conflicts.
-- Added a Discord asset-key manifest and aligned the included playback-state
-  PNG filenames with their Portal keys.
-- Changed the component default to the maintained `Foobar2000` Discord
-  application; a persisted one-time migration replaces only the legacy default
-  ID and preserves existing custom IDs.
-- Isolated MusicBrainz and uploader cache entries, keyed valid MusicBrainz
-  album IDs independently, and moved to a freshness-checked version 4 cache.
-- Prevented cache clear/reload and superseded artwork requests from publishing
-  stale results; successful cache load/clear actions now re-evaluate the active
-  track where applicable and report failures accurately.
-- Preserved Discord presence with its configured fallback if the artwork worker
-  fails, and made MusicBrainz shutdown cancellation responsive.
-- Fixed paused presence being restored when Discord reconnects.
+- Added a Providers preference tab which owns the artwork-source settings;
+  provider-specific live status remains visible on the Main tab.
+- Added TheAudioDB as an optional fallback using the user's own supporter key.
+  The key is masked in Preferences, stored for the current Windows user in
+  Windows Credential Manager, excluded from the artwork cache, and redacted
+  from request logging.
+- Kept local or embedded foobar2000 artwork first when a trusted external
+  uploader is configured, followed by MusicBrainz / Cover Art Archive and then
+  TheAudioDB. Each source now has separate cache identity and status.
+- Prevented Credential Manager failures from disrupting playback presence and
+  stopped repeated TheAudioDB requests after a rejected key until that key is
+  replaced or explicitly tested again.
+- Made clearing the stored TheAudioDB key transactional with Preferences Apply
+  and Reset, and preserved pending key edits and test state across tab switches.
+- Made custom-uploader tests respond to cancellation and clean up their child
+  process.
+- Made the local build script discover and validate Python 3.10 or newer,
+  avoiding a hard dependency on the Windows `py` launcher.
+
+## Provider scope
+
+The built-in online metadata sources are MusicBrainz / Cover Art Archive and
+TheAudioDB. Local or embedded foobar2000 artwork can be passed to a configured
+external uploader. This release does not add an arbitrary-provider plug-in
+framework, a general local-directory browser, or bundled artwork hosting.
+
+Do not put API keys or access tokens in the custom-uploader command: process
+command lines and this setting are not secret storage. Use the provider's
+supported credential field or the uploader's own secure configuration.
 
 ## Validation
 
-- Built and packaged `Release|x64` and `Release|Win32`.
-- Passed the Python release and asset tests, focused C++ validation, package
-  integrity checks, and release-metadata verification.
+- Python release, asset, provider, and build-tooling tests.
+- Focused strict C++ validation.
+- `Release|x64` and `Release|Win32` builds and package-integrity checks.

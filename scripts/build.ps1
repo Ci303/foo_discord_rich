@@ -5,6 +5,7 @@ param(
     [string]$Platform = 'x64',
     [string]$Toolset = 'v145',
     [string]$VCToolsVersion = '14.51.36231',
+    [string]$PythonExecutable,
     [switch]$NoPackage,
     [switch]$Deploy
 )
@@ -12,6 +13,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $scriptDir 'python_command.ps1')
 Set-Location (Resolve-Path (Join-Path $scriptDir '..'))
 
 if (-not (Get-Command msbuild -ErrorAction SilentlyContinue))
@@ -43,14 +45,21 @@ if ($LASTEXITCODE -ne 0)
 
 if (-not $NoPackage)
 {
+    $pythonCommand = Resolve-PythonCommand -RequestedExecutable $PythonExecutable
     $packArgs = @(
         'scripts\\pack_component.py',
         '--configuration', $Configuration,
         '--platform', $Platform
     )
 
-    Write-Host "Running: py $($packArgs -join ' ')"
-    py @packArgs
+    $pythonDisplay = $pythonCommand.Path
+    if ($pythonCommand.PrefixArguments.Count -gt 0)
+    {
+        $pythonDisplay += ' ' + ($pythonCommand.PrefixArguments -join ' ')
+    }
+    Write-Host "Using Python $($pythonCommand.Version): $pythonDisplay"
+    Write-Host "Running: $pythonDisplay $($packArgs -join ' ')"
+    Invoke-PythonCommand -PythonCommand $pythonCommand -Arguments $packArgs
     if ($LASTEXITCODE -ne 0)
     {
         throw "pack_component.py exited with code $LASTEXITCODE"

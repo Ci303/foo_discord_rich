@@ -35,6 +35,57 @@ inline bool IsEligibleTheAudioDbSupporterKey( std::string_view apiKey )
     return apiKey != "123" && IsValidTheAudioDbApiKey( apiKey );
 }
 
+class BoundedTheAudioDbKeySet
+{
+public:
+    explicit BoundedTheAudioDbKeySet( size_t capacity )
+        : capacity_( capacity )
+    {
+    }
+
+    bool Contains( std::string_view apiKey ) const
+    {
+        return std::ranges::any_of( keys_, [apiKey]( const auto& key ) {
+            return key == apiKey;
+        } );
+    }
+
+    void Insert( std::string apiKey )
+    {
+        if ( capacity_ == 0 || Contains( apiKey ) )
+        {
+            return;
+        }
+        if ( keys_.size() >= capacity_ )
+        {
+            keys_.erase( keys_.begin() );
+        }
+        keys_.push_back( std::move( apiKey ) );
+    }
+
+    bool Erase( std::string_view apiKey )
+    {
+        const auto it = std::ranges::find_if( keys_, [apiKey]( const auto& key ) {
+            return key == apiKey;
+        } );
+        if ( it == keys_.end() )
+        {
+            return false;
+        }
+        keys_.erase( it );
+        return true;
+    }
+
+    size_t Size() const
+    {
+        return keys_.size();
+    }
+
+private:
+    size_t capacity_ = 0;
+    std::vector<std::string> keys_;
+};
+
 inline std::string NormaliseTheAudioDbLookupText( std::string value )
 {
     const auto first = value.find_first_not_of( " \t\r\n" );

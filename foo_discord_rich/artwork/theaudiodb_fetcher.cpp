@@ -20,20 +20,22 @@ const std::chrono::seconds kRateLimitCooldown{ 60 };
 constexpr size_t kMaxLoggedResponseBytes = 4096;
 constexpr int kMaxTransientAttempts = 3;
 constexpr size_t kMaxRateLimitedKeys = 16;
+constexpr size_t kMaxRejectedApiKeys = 16;
 const cpr::Header kJsonRequestHeaders{
     { "Accept", "application/json" },
     { "User-Agent", DRP_UNDERSCORE_NAME "/" DRP_VERSION " (" DRP_HOMEPAGE ")" },
 };
 
-struct RateLimitState
+struct ProviderKeyState
 {
     std::mutex mutex;
     std::unordered_map<qwr::u8string, std::chrono::steady_clock::time_point> retryAfterByApiKey;
+    artwork::BoundedTheAudioDbKeySet rejectedApiKeys{ kMaxRejectedApiKeys };
 };
 
-RateLimitState& GetRateLimitState()
+ProviderKeyState& GetProviderKeyState()
 {
-    static RateLimitState state;
+    static ProviderKeyState state;
     return state;
 }
 
@@ -45,7 +47,7 @@ std::timed_mutex& GetRequestMutex()
 
 void MarkRateLimited( const qwr::u8string& apiKey )
 {
-    auto& state = GetRateLimitState();
+    auto& state = GetProviderKeyState();
     std::scoped_lock lock{ state.mutex };
     const auto now = std::chrono::steady_clock::now();
     std::erase_if( state.retryAfterByApiKey, [now]( const auto& item ) {
@@ -62,6 +64,13 @@ void MarkRateLimited( const qwr::u8string& apiKey )
         }
     }
     state.retryAfterByApiKey.insert_or_assign( apiKey, now + kRateLimitCooldown );
+}
+
+void MarkApiKeyRejected( const qwr::u8string& apiKey )
+{
+    auto& state = GetProviderKeyState();
+    std::scoped_lock lock{ state.mutex };
+    state.rejectedApiKeys.Insert( apiKey );
 }
 
 void ThrottleRequest( abort_callback& aborter )
@@ -205,7 +214,7 @@ namespace drp::theaudiodb
 
 bool IsRateLimited( const qwr::u8string& configuredApiKey )
 {
-    auto& state = GetRateLimitState();
+    auto& state = GetProviderKeyState();
     std::scoped_lock lock{ state.mutex };
     const auto it = state.retryAfterByApiKey.find( configuredApiKey );
     if ( it == state.retryAfterByApiKey.end() )
@@ -220,6 +229,20 @@ bool IsRateLimited( const qwr::u8string& configuredApiKey )
     return true;
 }
 
+bool IsApiKeyRejected( const qwr::u8string& configuredApiKey )
+{
+    auto& state = GetProviderKeyState();
+    std::scoped_lock lock{ state.mutex };
+    return state.rejectedApiKeys.Contains( configuredApiKey );
+}
+
+void ResetRejectedApiKeyState( const qwr::u8string& configuredApiKey )
+{
+    auto& state = GetProviderKeyState();
+    std::scoped_lock lock{ state.mutex };
+    state.rejectedApiKeys.Erase( configuredApiKey );
+}
+
 std::optional<qwr::u8string> FetchArt(
     const qwr::u8string& artist,
     const qwr::u8string& album,
@@ -231,6 +254,10 @@ std::optional<qwr::u8string> FetchArt(
     if ( !artwork::IsEligibleTheAudioDbSupporterKey( apiKey ) )
     {
         throw qwr::QwrException( "TheAudioDB requires a valid user-owned supporter API key" );
+    }
+    if ( IsApiKeyRejected( apiKey ) )
+    {
+        throw AuthenticationRejectedException( "TheAudioDB previously rejected the configured API key; retest it or store a replacement key" );
     }
     std::unique_lock requestLock{ GetRequestMutex(), std::defer_lock };
     while ( !requestLock.try_lock_for( std::chrono::milliseconds{ 100 } ) )
@@ -245,6 +272,12 @@ std::optional<qwr::u8string> FetchArt(
     if ( requestIsCurrent && !requestIsCurrent() )
     {
         throw exception_aborted();
+    }
+    // Another request may have received an authentication rejection while this
+    // request was waiting for the provider lock.
+    if ( IsApiKeyRejected( apiKey ) )
+    {
+        throw AuthenticationRejectedException( "TheAudioDB previously rejected the configured API key; retest it or store a replacement key" );
     }
     if ( IsRateLimited( apiKey ) )
     {
@@ -264,7 +297,8 @@ std::optional<qwr::u8string> FetchArt(
     }
     if ( response.status_code == 401 || response.status_code == 403 || response.status_code == 404 )
     {
-        throw qwr::QwrException( "TheAudioDB rejected the configured API key" );
+        MarkApiKeyRejected( apiKey );
+        throw AuthenticationRejectedException( "TheAudioDB rejected the configured API key" );
     }
     if ( response.status_code != 200 )
     {

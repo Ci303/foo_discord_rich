@@ -1,6 +1,7 @@
 ### Main scripts
 - setup.py - Set up everything, so that project can be built.
-- build.ps1 - Build, package, and optionally deploy the component with the explicit v145 toolset defaults.
+- build.ps1 - Build, package, and optionally deploy the component with the explicit v145 toolset defaults and validated Python discovery.
+- python_command.ps1 - Find Python 3.10 or newer without depending on one Windows launcher.
 - pack_component.py - Pack project binaries to .fb2k-component archive.
 
 ### Auxiliary scripts

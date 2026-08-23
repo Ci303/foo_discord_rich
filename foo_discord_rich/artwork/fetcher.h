@@ -86,7 +86,7 @@ private:
         std::optional<qwr::u8string> artUrl;
         bool cacheable = false;
         qwr::u8string failureMessage;
-        bool rateLimited = false;
+        bool providerSuppressed = false;
     };
 
     struct CacheEntry

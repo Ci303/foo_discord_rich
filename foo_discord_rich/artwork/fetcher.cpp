@@ -211,6 +211,7 @@ std::optional<qwr::u8string> ArtworkFetcher::GetArtUrl( const std::vector<FetchR
     bool sawInvalidConfiguration = false;
     bool sawCachedNoMatch = false;
     bool sawProviderFailure = false;
+    bool sawRejectedCredential = false;
     std::optional<std::pair<FetchRequest, qwr::u8string>> pendingCandidate;
     std::optional<std::pair<FetchRequest, qwr::u8string>> cachedFallback;
 
@@ -253,6 +254,11 @@ std::optional<qwr::u8string> ArtworkFetcher::GetArtUrl( const std::vector<FetchR
         if ( std::holds_alternative<TheAudioDbFetchRequest>( request ) )
         {
             const auto& theAudioDbRequest = std::get<TheAudioDbFetchRequest>( request );
+            if ( theaudiodb::IsApiKeyRejected( theAudioDbRequest.apiKey ) )
+            {
+                sawRejectedCredential = true;
+                continue;
+            }
             if ( theaudiodb::IsRateLimited( theAudioDbRequest.apiKey ) )
             {
                 sawProviderFailure = true;
@@ -326,7 +332,11 @@ std::optional<qwr::u8string> ArtworkFetcher::GetArtUrl( const std::vector<FetchR
     }
 
     SupersedeCurrentRequestLocked();
-    if ( sawProviderFailure )
+    if ( sawRejectedCredential )
+    {
+        SetStatusLocked( Status::Failed, "TheAudioDB rejected the stored API key; retest it or store a replacement key." );
+    }
+    else if ( sawProviderFailure )
     {
         SetStatusLocked( Status::Failed, "No artwork was resolved; an enabled provider recently failed." );
     }
@@ -638,7 +648,7 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
             outcome.failureMessage = "An artwork provider returned an image URL Discord cannot use; trying the next provider.";
         }
 
-        bool shouldRefreshImage = outcome.rateLimited;
+        bool shouldRefreshImage = outcome.providerSuppressed;
         {
             std::unique_lock lock( mutex_ );
             const bool mayCommit = artwork::CanCommitCacheResult( work.cacheGeneration, cacheGeneration_ );
@@ -669,7 +679,7 @@ void ArtworkFetcher::ThreadMain( std::stop_token token )
             }
             else if ( mayCommit && !outcome.failureMessage.empty() )
             {
-                if ( !outcome.rateLimited )
+                if ( !outcome.providerSuppressed )
                 {
                     if ( !cacheKeyToRetryAfter_.contains( work.pending.cacheKey ) && cacheKeyToRetryAfter_.size() >= kMaxCacheEntries )
                     {
@@ -803,6 +813,11 @@ ArtworkFetcher::FetchOutcome ArtworkFetcher::ProcessFetchRequest(
     {
         LogWarning( e.what() );
         return { {}, false, "TheAudioDB rate limit reached; the provider will be skipped for one minute.", true };
+    }
+    catch ( const theaudiodb::AuthenticationRejectedException& e )
+    {
+        LogError( e.what() );
+        return { {}, false, "TheAudioDB rejected the stored API key; retest it or store a replacement key.", true };
     }
     catch ( const qwr::QwrException& e )
     {

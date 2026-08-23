@@ -11,6 +11,8 @@
 #include <qwr/ui_ddx_option.h>
 
 #include <array>
+#include <atomic>
+#include <memory>
 #include <optional>
 
 namespace drp::ui
@@ -33,6 +35,7 @@ public:
 
     BEGIN_MSG_MAP( PreferenceTabProviders )
         MSG_WM_INITDIALOG( OnInitDialog )
+        MSG_WM_DESTROY( OnDestroy )
         COMMAND_HANDLER_EX( IDC_CHECK_FETCH_ALBUM_ART, BN_CLICKED, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_CHECK_FETCH_THEAUDIODB, BN_CLICKED, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_EDIT_THEAUDIODB_API_KEY, EN_CHANGE, OnDdxUiChange )
@@ -65,7 +68,14 @@ public:
     bool HasPendingArtworkSettings() const;
 
 private:
+    struct TheAudioDbTestState
+    {
+        std::atomic_bool isRunning = false;
+        std::atomic<HWND> dialogHwnd = nullptr;
+    };
+
     BOOL OnInitDialog( HWND hwndFocus, LPARAM lParam );
+    void OnDestroy();
     void OnDdxUiChange( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnShowApiKeyClick( UINT uNotifyCode, int nID, CWindow wndCtl );
     void OnTestTheAudioDbClick( UINT uNotifyCode, int nID, CWindow wndCtl );
@@ -81,6 +91,7 @@ private:
     void UpdateControlState();
     std::optional<qwr::u8string> GetEffectiveTheAudioDbApiKey();
     void ClearPendingTheAudioDbApiKey();
+    void CancelPendingTheAudioDbCredentialChange();
     void UpdateTheAudioDbCredentialUi();
 
 private:
@@ -105,7 +116,9 @@ private:
 
     qwr::u8string pendingTheAudioDbApiKey_;
     bool hasStoredTheAudioDbApiKey_ = false;
-    bool isTheAudioDbTestRunning_ = false;
+    bool isTheAudioDbKeyDeletionPending_ = false;
+    bool isRestoringTheAudioDbCredentialUi_ = false;
+    std::shared_ptr<TheAudioDbTestState> theAudioDbTestState_ = std::make_shared<TheAudioDbTestState>();
     fb2k::CCoreDarkModeHooks darkModeHooks_;
 };
 
