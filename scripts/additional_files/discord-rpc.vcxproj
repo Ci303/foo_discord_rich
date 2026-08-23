@@ -49,7 +49,7 @@
   <PropertyGroup>
     <NMakeBuildCommandLine>if not exist "$(IntDir)" mkdir "$(IntDir)"
 cd "$(IntDir)"
-"$(CMakeExe)" -S "$(ProjectDir.TrimEnd('\'))" -DCMAKE_INSTALL_PREFIX="$(OutDir.TrimEnd('\'))" -DCMAKE_GENERATOR_INSTANCE="$(CurrentVsInstallRoot)" -DCMAKE_GENERATOR_PLATFORM=$(Platform) -T $(PlatformToolset) -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DUSE_STATIC_CRT=ON
+"$(CMakeExe)" -S "$(ProjectDir.TrimEnd('\'))" -DCMAKE_INSTALL_PREFIX="$(OutDir.TrimEnd('\'))" -DCMAKE_GENERATOR_INSTANCE="$(CurrentVsInstallRoot)" -DCMAKE_GENERATOR_PLATFORM=$(Platform) -T $(PlatformToolset) -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DUSE_STATIC_CRT=OFF
 "$(CMakeExe)" --build "$(IntDir.TrimEnd('\'))" --config $(Configuration) --target install</NMakeBuildCommandLine>
     <ExecutablePath>$(DevEnvDir)CommonExtensions\Microsoft\CMake\CMake\bin;$(ExecutablePath)</ExecutablePath>
     <NMakeCleanCommandLine>if exist "$(IntDir.TrimEnd('\'))" rmdir /s/q "$(IntDir.TrimEnd('\'))"

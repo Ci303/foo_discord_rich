@@ -48,7 +48,7 @@
     <Import Project="$(SolutionDir)\..\props\submodules\fb2k_utils.props" />
     <Import Project="$(QwrFb2kUtilsPropsDir)env\BuildEnvCommon.props" />
     <Import Project="$(QwrFb2kUtilsPropsDir)env\BuildEnvCpp.props" />
-    <Import Project="$(QwrFb2kUtilsPropsDir)env\StaticRuntime.props" />
+    <Import Project="$(QwrFb2kUtilsPropsDir)env\DynamicRuntime.props" />
     <Import Project="$(QwrFb2kUtilsPropsDir)submodules\fmt.props" />
     <Import Project="$(QwrFb2kUtilsPropsDir)submodules\foobar2000_sdk.props" />
     <Import Project="$(QwrFb2kUtilsPropsDir)submodules\json.props" />

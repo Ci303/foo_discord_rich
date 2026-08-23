@@ -40,9 +40,21 @@ PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
     , bottomTextQuery_( config::bottomTextQuery )
     , enableAlbumArtFetch_( config::enableAlbumArtFetch )
     , artworkDisplayPolicy_( config::artworkDisplayPolicy,
-          { { artwork::DisplayPolicy::PreferArtwork, 0 }, { artwork::DisplayPolicy::ApplicationIcon, 1 }, { artwork::DisplayPolicy::ArtworkOnly, 2 } } )
-    , largeImageSettings_( config::largeImageSettings, { { ImageSetting::Light, IDC_RADIO_IMG_LIGHT }, { ImageSetting::Dark, IDC_RADIO_IMG_DARK }, { ImageSetting::Disabled, IDC_RADIO_IMG_DISABLED } } )
-    , smallImageSettings_( config::smallImageSettings, { { ImageSetting::Light, IDC_RADIO_PLAYBACK_IMG_LIGHT }, { ImageSetting::Dark, IDC_RADIO_PLAYBACK_IMG_DARK }, { ImageSetting::Disabled, IDC_RADIO_PLAYBACK_IMG_DISABLED } } )
+          { { artwork::DisplayPolicy::PreferArtwork, 0 },
+            { artwork::DisplayPolicy::ApplicationIcon, 1 },
+            { artwork::DisplayPolicy::ArtworkOnly, 2 } } )
+    , largeImageSettings_( config::largeImageSettings,
+          { { ImageSetting::Light, IDC_RADIO_IMG_LIGHT },
+            { ImageSetting::Dark, IDC_RADIO_IMG_DARK },
+            { ImageSetting::Disabled, IDC_RADIO_IMG_DISABLED } } )
+    , smallImageSettings_( config::smallImageSettings,
+          { { ImageSetting::Light, IDC_RADIO_PLAYBACK_IMG_LIGHT },
+            { ImageSetting::Dark, IDC_RADIO_PLAYBACK_IMG_DARK },
+            { ImageSetting::Disabled, IDC_RADIO_PLAYBACK_IMG_DISABLED } } )
+    , statusSettings_( config::statusSettings,
+          { { StatusSetting::Name, IDC_RADIO_STATUS_NAME },
+            { StatusSetting::Top, IDC_RADIO_STATUS_TOP },
+            { StatusSetting::Middle, IDC_RADIO_STATUS_MIDDLE } } )
     , disableWhenPaused_( config::disableWhenPaused )
     , swapSmallImages_( config::swapSmallImages )
     , ddxOptions_( {
@@ -52,8 +64,15 @@ PreferenceTabMain::PreferenceTabMain( PreferenceTabManager* pParent )
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_TextEdit>( bottomTextQuery_, IDC_EDIT_BOTTOM_TEXT ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( enableAlbumArtFetch_, IDC_CHECK_FETCH_ALBUM_ART ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_ComboBox>( artworkDisplayPolicy_, IDC_COMBO_ARTWORK_POLICY ),
-          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>( largeImageSettings_, std::initializer_list<int>{ IDC_RADIO_IMG_LIGHT, IDC_RADIO_IMG_DARK, IDC_RADIO_IMG_DISABLED } ),
-          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>( smallImageSettings_, std::initializer_list<int>{ IDC_RADIO_PLAYBACK_IMG_LIGHT, IDC_RADIO_PLAYBACK_IMG_DARK, IDC_RADIO_PLAYBACK_IMG_DISABLED } ),
+          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>(
+              largeImageSettings_,
+              std::initializer_list<int>{ IDC_RADIO_IMG_LIGHT, IDC_RADIO_IMG_DARK, IDC_RADIO_IMG_DISABLED } ),
+          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>(
+              smallImageSettings_,
+              std::initializer_list<int>{ IDC_RADIO_PLAYBACK_IMG_LIGHT, IDC_RADIO_PLAYBACK_IMG_DARK, IDC_RADIO_PLAYBACK_IMG_DISABLED } ),
+          qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_RadioRange>(
+              statusSettings_,
+              std::initializer_list<int>{ IDC_RADIO_STATUS_NAME, IDC_RADIO_STATUS_MIDDLE } ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( disableWhenPaused_, IDC_CHECK_DISABLE_WHEN_PAUSED ),
           qwr::ui::CreateUiDdxOption<qwr::ui::UiDdx_CheckBox>( swapSmallImages_, IDC_CHECK_SWAP_STATUS ),
       } )
@@ -130,6 +149,7 @@ BOOL PreferenceTabMain::OnInitDialog( HWND hwndFocus, LPARAM lParam )
     artworkPolicy.AddString( L"Prefer artwork; use large-image fallback" );
     artworkPolicy.AddString( L"Use configured large image only" );
     artworkPolicy.AddString( L"Album artwork only; no fallback image" );
+    artworkPolicy.SetDroppedWidth( 140 );
 
     for ( auto& ddxOpt: ddxOptions_ )
     {

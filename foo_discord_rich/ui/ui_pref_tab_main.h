@@ -39,6 +39,7 @@ public:
         COMMAND_HANDLER_EX( IDC_COMBO_ARTWORK_POLICY, CBN_SELCHANGE, OnDdxUiChange )
         COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_IMG_LIGHT, IDC_RADIO_IMG_DISABLED, BN_CLICKED, OnDdxUiChange )
         COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_PLAYBACK_IMG_LIGHT, IDC_RADIO_PLAYBACK_IMG_DISABLED, BN_CLICKED, OnDdxUiChange )
+        COMMAND_RANGE_CODE_HANDLER_EX( IDC_RADIO_STATUS_NAME, IDC_RADIO_STATUS_MIDDLE, BN_CLICKED, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_BUTTON_PREVIEW_PRESENCE, BN_CLICKED, OnPreviewPresenceClick )
         COMMAND_HANDLER_EX( IDC_CHECK_DISABLE_WHEN_PAUSED, BN_CLICKED, OnDdxUiChange )
         COMMAND_HANDLER_EX( IDC_CHECK_SWAP_STATUS, BN_CLICKED, OnDdxUiChange )
@@ -81,21 +82,22 @@ private:
 
     // clang-format off
     SPTF_DEFINE_UI_OPTIONS( isEnabled,
-                            topTextQuery,
-                            middleTextQuery,
-                            bottomTextQuery,
-                            enableAlbumArtFetch,
-                            artworkDisplayPolicy,
-                            largeImageSettings,
-                            smallImageSettings,
-                            disableWhenPaused,
-                            swapSmallImages )
+        topTextQuery,
+        middleTextQuery,
+        bottomTextQuery,
+        enableAlbumArtFetch,
+        artworkDisplayPolicy,
+        largeImageSettings,
+        smallImageSettings,
+        statusSettings,
+        disableWhenPaused,
+        swapSmallImages )
     // clang-format on
 
 #undef SPTF_DEFINE_OPTIONS
 #undef SPTF_DEFINE_OPTION
 
-    std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 10> ddxOptions_;
+std::array<std::unique_ptr<qwr::ui::IUiDdxOption>, 11> ddxOptions_;
 
     CHyperLink helpUrl_;
 

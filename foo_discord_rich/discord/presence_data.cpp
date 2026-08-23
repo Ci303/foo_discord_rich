@@ -214,6 +214,7 @@ bool PresenceData::operator==( const PresenceData& other ) const
            && areStringsSame( presence.largeImageText, other.presence.largeImageText )
            && areStringsSame( presence.smallImageKey, other.presence.smallImageKey )
            && areStringsSame( presence.smallImageText, other.presence.smallImageText )
+           && presence.statusDisplayType == other.presence.statusDisplayType
            && presence.startTimestamp == other.presence.startTimestamp
            && presence.endTimestamp == other.presence.endTimestamp
            && trackLength == other.trackLength;
@@ -389,6 +390,21 @@ void PresenceModifier::UpdateTrack( metadb_handle_ptr metadb )
     ApplyDiscordTextLimit( pd.bottomText );
     pd.UpdateTextFieldPointers();
 
+    switch ( config::statusSettings )
+    {
+    case config::StatusSetting::Name:
+        pd.presence.statusDisplayType = StatusDisplayType::NAME;
+        break;
+
+    case config::StatusSetting::Middle:
+        pd.presence.statusDisplayType = StatusDisplayType::STATE;
+        break;
+
+    case config::StatusSetting::Top:
+        pd.presence.statusDisplayType = StatusDisplayType::DETAILS;
+        break;
+    }
+
     const qwr::u8string lengthStr = queryData( "[%length_seconds_fp%]" );
     const qwr::u8string durationStr = queryData( "[%playback_time_seconds%]" );
     UpdateDuration( ParseDoubleOrZero( durationStr ), ParseDoubleOrZero( lengthStr ) );
@@ -400,35 +416,22 @@ void PresenceModifier::UpdateDuration( double currentTime )
 {
     auto& pd = presenceData_;
     auto pc = playback_control::get();
-    const config::TimeSetting timeSetting = ( ( pd.trackLength && pc->is_playing() && !pc->is_paused() ) ? config::timeSettings : config::TimeSetting::Disabled );
+
+    if ( !pd.trackLength || !pc->is_playing() || pc->is_paused() )
+    {
+        pd.presence.startTimestamp = 0;
+        pd.presence.endTimestamp = 0;
+        return;
+    }
+
     const auto now = CurrentUnixTime();
     const auto currentSeconds = RoundedNonNegativeSeconds( currentTime );
-    switch ( timeSetting )
-    {
-    case config::TimeSetting::Elapsed:
-    {
-        pd.presence.startTimestamp = ( currentSeconds > now ? 0 : now - currentSeconds );
-        pd.presence.endTimestamp = 0;
+    const auto remainingSeconds = RoundedNonNegativeSeconds( pd.trackLength - currentTime );
 
-        break;
-    }
-    case config::TimeSetting::Remaining:
-    {
-        const auto remainingSeconds = RoundedNonNegativeSeconds( pd.trackLength - currentTime );
-        pd.presence.startTimestamp = 0;
-        pd.presence.endTimestamp = AddTimestampOffset( now, remainingSeconds );
-
-        break;
-    }
-    case config::TimeSetting::Disabled:
-    {
-        pd.presence.startTimestamp = 0;
-        pd.presence.endTimestamp = 0;
-
-        break;
-    }
-    }
+    pd.presence.startTimestamp = ( currentSeconds > now ? 0 : now - currentSeconds );
+    pd.presence.endTimestamp = AddTimestampOffset( now, remainingSeconds );
 }
+
 
 void PresenceModifier::UpdateDuration( double currentTime, double totalLength )
 {
