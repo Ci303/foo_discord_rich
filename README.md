@@ -9,6 +9,12 @@ This repository is a maintained fork of the original
 [TheQwertiest/foo_discord_rich](https://github.com/TheQwertiest/foo_discord_rich)
 component.
 
+## Credits
+
+This version incorporates the Discord Rich Presence progress bar/activity functionality ported from [supern64/foo_discord_rich](https://github.com/supern64/foo_discord_rich), adapted to the current codebase.
+
+Credit for the original project, its contributors, and the ported functionality belongs to their respective authors. The original MIT license and third-party notices are preserved.
+
 For setup examples, title-formatting fields, and album art behavior, see the
 [configuration guide](docs/CONFIGURATION.md).
 
